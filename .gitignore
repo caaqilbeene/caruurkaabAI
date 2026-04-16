@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Firebase local cache
+.firebase/
+firebase_functions/node_modules/
+
+# Local build/artifact files
+*.apk
+*.pdf
+
+# Local Android Firebase config (don't publish public repo)
+caruurkaab_ai/android/app/google-services.json
