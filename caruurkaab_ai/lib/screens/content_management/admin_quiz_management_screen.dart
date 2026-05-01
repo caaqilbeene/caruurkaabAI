@@ -48,14 +48,18 @@ class _AdminQuizManagementScreenState extends State<AdminQuizManagementScreen> {
           SizedBox(
             height: 48,
             child: ElevatedButton.icon(
-              onPressed: () {
-                // CHANGED: Open quiz form screen.
-                Navigator.push(
+              onPressed: () async {
+                final created = await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => const AdminQuizFormScreen(),
                   ),
                 );
+                if (created == true && mounted) {
+                  setState(() {
+                    _futureQuizzes = _fetchQuizzes();
+                  });
+                }
               },
               icon: const Icon(Icons.add_circle_outline, color: Colors.white),
               label: const Text(

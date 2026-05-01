@@ -46,16 +46,36 @@ class AdminUserDeleteService {
       if (email != null && email.trim().isNotEmpty) email.trim(),
     }..removeWhere((v) => v.isEmpty);
 
+    bool isMissingTableError(PostgrestException e) {
+      if (e.code == 'PGRST205' || e.code == '42P01') return true;
+      final text = '${e.message} ${e.details ?? ''} ${e.hint ?? ''}'
+          .toLowerCase();
+      return (text.contains('could not find the table') &&
+              text.contains('in the schema cache')) ||
+          (text.contains('relation') && text.contains('does not exist'));
+    }
+
     Future<void> deleteByKeys(String table) async {
-      for (final key in keys) {
-        await client.from(table).delete().eq('user_id', key);
+      try {
+        for (final key in keys) {
+          await client.from(table).delete().eq('user_id', key);
+        }
+      } on PostgrestException catch (e) {
+        // Optional/legacy tables haddii aysan jirin, delete-ka intiisa kale sii wad.
+        if (isMissingTableError(e)) return;
+        rethrow;
       }
     }
 
-    // student_registry + user_profiles user_id column ayay ku xiran yihiin.
-    await deleteByKeys('student_registry');
-    await deleteByKeys('user_profiles');
+    // user_id tables:
+    // Nadiifi dhammaan xogaha ardayga si delete-ku u noqdo permanent.
+    await deleteByKeys('student_notifications');
+    await deleteByKeys('student_question_inbox');
+    await deleteByKeys('student_daily_challenges');
+    await deleteByKeys('student_quiz_progress');
     await deleteByKeys('lesson_progress');
+    await deleteByKeys('user_profiles');
+    await deleteByKeys('student_registry');
 
     // Haddii key uu email yahay, column email ku jira student_registry-na ka nadiifi.
     if (email != null && email.trim().isNotEmpty) {

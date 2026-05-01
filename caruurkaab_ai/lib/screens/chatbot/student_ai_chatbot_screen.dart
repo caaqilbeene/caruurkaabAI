@@ -1,5 +1,5 @@
-import 'dart:math';
-
+import 'package:caruurkaab_ai/services/chatbot/chat_controller.dart';
+import 'package:caruurkaab_ai/services/chatbot/supabase_chat_knowledge_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,7 +15,8 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
   final ScrollController _scrollController = ScrollController();
 
   final List<_ChatMessage> _messages = [];
-  final List<_KnowledgeChunk> _knowledge = [];
+
+  late final ChatController _chatController;
 
   bool _isReplying = false;
   String _typingDraft = '';
@@ -23,15 +24,10 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
   @override
   void initState() {
     super.initState();
-    _messages.add(
-      const _ChatMessage(
-        text:
-            "Salaan! Waxaan ahay Chatbot-kaaga waxbarasho.\n\n"
-            "I waydii su'aal kasta oo la xiriirta casharradaada, waan kaa caawinayaa.",
-        isUser: false,
-      ),
+    _chatController = ChatController(
+      supabaseService: const SupabaseChatKnowledgeService(),
     );
-    _loadKnowledgeBase();
+    _chatController.warmup();
   }
 
   @override
@@ -39,172 +35,6 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadKnowledgeBase() async {
-    final db = Supabase.instance.client;
-    final collected = <_KnowledgeChunk>[];
-
-    Future<void> safeRun(Future<void> Function() task) async {
-      try {
-        await task();
-      } catch (_) {
-        // Table ama permissions error ha joojin chatbot-ka.
-      }
-    }
-
-    await safeRun(() async {
-      final rows = await db
-          .from('lessons')
-          .select('id,title,desc,subject_name,class_level,chapter_id,items');
-
-      for (final row in rows) {
-        final map = Map<String, dynamic>.from(row);
-
-        final title = (map['title'] ?? 'Cashar').toString().trim();
-        final desc = (map['desc'] ?? '').toString().trim();
-        final subject = (map['subject_name'] ?? '').toString().trim();
-        final classLevel = (map['class_level'] ?? '').toString().trim();
-
-        final parts = <String>[];
-        if (desc.isNotEmpty) parts.add(desc);
-
-        final items = map['items'];
-        if (items is List) {
-          for (final raw in items) {
-            if (raw is! Map) continue;
-            final item = Map<String, dynamic>.from(raw);
-            final text = (item['text'] ?? '').toString().trim();
-            final caption = (item['caption'] ?? '').toString().trim();
-            final question = (item['question'] ?? '').toString().trim();
-            if (text.isNotEmpty) parts.add(text);
-            if (caption.isNotEmpty) parts.add(caption);
-            if (question.isNotEmpty) parts.add(question);
-          }
-        }
-
-        final body = parts.join('\n');
-        if (body.trim().isEmpty) continue;
-
-        collected.add(
-          _KnowledgeChunk(
-            source: 'lesson',
-            title: title,
-            subject: subject,
-            classLevel: classLevel,
-            body: body,
-          ),
-        );
-      }
-    });
-
-    await safeRun(() async {
-      final rows = await db
-          .from('quizzes')
-          .select(
-            'id,title,subject_name,class_level,chapter_id,lesson_id,questions',
-          );
-
-      for (final row in rows) {
-        final map = Map<String, dynamic>.from(row);
-
-        final title = (map['title'] ?? 'Quiz').toString().trim();
-        final subject = (map['subject_name'] ?? '').toString().trim();
-        final classLevel = (map['class_level'] ?? '').toString().trim();
-        final questions = map['questions'];
-
-        final parts = <String>[];
-        if (questions is List) {
-          for (final raw in questions) {
-            if (raw is! Map) continue;
-            final q = Map<String, dynamic>.from(raw);
-            final qText = (q['question'] ?? q['text'] ?? '').toString().trim();
-            final options = q['options'];
-            final answer = q['answer'] ?? q['correctAnswer'] ?? q['correct'];
-            if (qText.isNotEmpty) parts.add("Q: $qText");
-            if (options is List && options.isNotEmpty) {
-              parts.add(
-                "Options: ${options.map((e) => e.toString()).join(', ')}",
-              );
-            }
-            if (answer != null && answer.toString().trim().isNotEmpty) {
-              parts.add("Answer: ${answer.toString().trim()}");
-            }
-          }
-        }
-
-        if (parts.isEmpty) continue;
-        collected.add(
-          _KnowledgeChunk(
-            source: 'quiz',
-            title: title,
-            subject: subject,
-            classLevel: classLevel,
-            body: parts.join('\n'),
-          ),
-        );
-      }
-    });
-
-    await safeRun(() async {
-      final rows = await db.from('questions').select();
-      for (final row in rows) {
-        final map = Map<String, dynamic>.from(row);
-        final text =
-            (map['question'] ??
-                    map['text'] ??
-                    map['title'] ??
-                    map['prompt'] ??
-                    '')
-                .toString()
-                .trim();
-        if (text.isEmpty) continue;
-        collected.add(
-          _KnowledgeChunk(
-            source: 'question',
-            title: 'Question Bank',
-            subject: (map['subject_name'] ?? map['subject'] ?? '').toString(),
-            classLevel: (map['class_level'] ?? '').toString(),
-            body: text,
-          ),
-        );
-      }
-    });
-
-    await safeRun(() async {
-      final rows = await db.from('answers').select();
-      for (final row in rows) {
-        final map = Map<String, dynamic>.from(row);
-        final text =
-            (map['answer'] ??
-                    map['text'] ??
-                    map['answer_text'] ??
-                    map['content'] ??
-                    '')
-                .toString()
-                .trim();
-        if (text.isEmpty) continue;
-        collected.add(
-          _KnowledgeChunk(
-            source: 'answer',
-            title: 'Answer Bank',
-            subject: (map['subject_name'] ?? map['subject'] ?? '').toString(),
-            classLevel: (map['class_level'] ?? '').toString(),
-            body: text,
-          ),
-        );
-      }
-    });
-
-    // Placement su'aalaha (app-ka dhexdiisa) sidoo kale ku dar chatbot knowledge.
-    collected.addAll(_buildPlacementKnowledgeChunks());
-
-    if (!mounted) return;
-    setState(() {
-      _knowledge
-        ..clear()
-        ..addAll(collected);
-    });
   }
 
   Future<void> _sendMessage() async {
@@ -217,12 +47,12 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
     setState(() {
       _messages.add(_ChatMessage(text: input, isUser: true));
       _isReplying = true;
-      _typingDraft = '';
+      _typingDraft = 'Thinking...';
     });
     _scrollToBottom();
 
-    final reply = await _buildReply(input);
-    await Future.delayed(const Duration(milliseconds: 900));
+    final reply = await _chatController.getChatResponse(input);
+    await _saveUserQuestionToInbox(question: input, response: reply);
     await _animateTypingReply(reply);
 
     if (!mounted) return;
@@ -232,6 +62,35 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
       _typingDraft = '';
     });
     _scrollToBottom();
+  }
+
+  Future<void> _saveUserQuestionToInbox({
+    required String question,
+    required String response,
+  }) async {
+    final cleanQuestion = question.trim();
+    if (cleanQuestion.isEmpty) return;
+
+    try {
+      final db = Supabase.instance.client;
+      final user = db.auth.currentUser;
+      final userId = (user?.id ?? user?.email ?? 'unknown_user').trim();
+      if (userId.isEmpty) return;
+
+      final payload = <String, dynamic>{
+        'user_id': userId,
+        'user_email': user?.email ?? '',
+        'user_name': user?.userMetadata?['full_name']?.toString() ?? '',
+        'question': cleanQuestion,
+        'response': response.trim(),
+        'source': 'chatbot',
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      await db.from('student_question_inbox').insert(payload);
+    } catch (_) {
+      // Optional table: if missing, keep chatbot running.
+    }
   }
 
   Future<void> _animateTypingReply(String reply) async {
@@ -246,287 +105,6 @@ class _StudentAiChatbotScreenState extends State<StudentAiChatbotScreen> {
       _scrollToBottom();
       await Future.delayed(const Duration(milliseconds: 14));
     }
-  }
-
-  Future<String> _buildReply(String input) async {
-    final q = input.toLowerCase().trim();
-    if (q.isEmpty) return "Fadlan su'aal i soo qor.";
-
-    if (_knowledge.isEmpty) {
-      return "Weli xog casharro kama helin Supabase. Hubi in lessons/quizzes/questions/answers ay xog ku jiraan.";
-    }
-
-    if (q == 'salaan' || q == 'asc' || q.contains('hello')) {
-      return "Wcs! I waydii su'aal la xiriirta casharrada, quiz-yada, ama jawaabaha ku jira database-ka.";
-    }
-
-    final matches = _findBestMatches(q, limit: 1);
-    if (matches.isEmpty) {
-      return "Su'aashan xog toos ah ugama helin casharrada hadda. Isku day ereyo kale sida magaca maadada, cutubka, ama su'aasha saxda ah.";
-    }
-
-    final chunk = matches.first.chunk;
-    final details = _extractRelevantDetails(chunk: chunk, query: q);
-    return details;
-  }
-
-  List<_ScoredChunk> _findBestMatches(String query, {int limit = 1}) {
-    final normalizedQuery = _normalize(query);
-    final tokens = normalizedQuery
-        .split(' ')
-        .where((e) => e.trim().length >= 2)
-        .toSet();
-
-    final scored = <_ScoredChunk>[];
-
-    for (final chunk in _knowledge) {
-      final searchable = chunk.searchable;
-      var score = 0;
-
-      if (searchable.contains(normalizedQuery)) {
-        score += 20;
-      }
-
-      for (final token in tokens) {
-        if (searchable.contains(token)) score += 4;
-        if (chunk.titleNormalized.contains(token)) score += 5;
-        if (chunk.subjectNormalized.contains(token)) score += 2;
-      }
-
-      // Fudud: su'aalaha gaagaaban ha helaan bonus haddii title la mid noqdo.
-      if (tokens.length <= 3 &&
-          chunk.titleNormalized.contains(normalizedQuery)) {
-        score += 25;
-      }
-
-      // Haddii title-ku sax ugu jiro query-ga, si xooggan u mudnee.
-      if (normalizedQuery.length > 5 &&
-          (normalizedQuery.contains(chunk.titleNormalized) ||
-              chunk.titleNormalized.contains(normalizedQuery))) {
-        score += 40;
-      }
-
-      if (score > 0) {
-        scored.add(_ScoredChunk(chunk: chunk, score: score));
-      }
-    }
-
-    scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored.take(max(1, limit)).toList();
-  }
-
-  String _extractRelevantDetails({
-    required _KnowledgeChunk chunk,
-    required String query,
-  }) {
-    final source = switch (chunk.source) {
-      'lesson' => 'Cashar',
-      'quiz' => 'Quiz',
-      'question' => 'Question',
-      'answer' => 'Answer',
-      'placement' => 'Placement',
-      _ => chunk.source,
-    };
-
-    // Quiz: isku day in aan keenno hal Q/A oo query-ga ugu dhow.
-    if (chunk.source == 'quiz') {
-      final qa = _extractBestQuizQa(chunk.body, query);
-      if (qa != null) {
-        return "${chunk.title}\n\n${qa.$1}\n${qa.$2}";
-      }
-    }
-
-    final focused = _extractMatchingSnippet(chunk.body, query, maxChars: 420);
-    final infoParts = <String>[];
-    if (chunk.subject.trim().isNotEmpty) infoParts.add(chunk.subject.trim());
-    if (chunk.classLevel.trim().isNotEmpty) {
-      infoParts.add("Fasalka ${chunk.classLevel.trim()}");
-    }
-    infoParts.add(source);
-
-    return "${chunk.title}\n\n$focused\n\n[${infoParts.join(' • ')}]";
-  }
-
-  (String, String)? _extractBestQuizQa(String body, String query) {
-    final lines = body.split('\n');
-    final qNorm = _normalize(query);
-    final tokens = qNorm.split(' ').where((e) => e.length >= 2).toList();
-
-    var bestQuestion = '';
-    var bestAnswer = '';
-    var bestScore = 0;
-
-    for (var i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (!line.startsWith('Q:')) continue;
-      final qLine = line.replaceFirst('Q:', '').trim();
-      var score = 0;
-      final qLineNorm = _normalize(qLine);
-
-      if (qLineNorm.contains(qNorm)) score += 20;
-      for (final token in tokens) {
-        if (qLineNorm.contains(token)) score += 3;
-      }
-
-      String answerLine = '';
-      for (var j = i + 1; j < min(i + 5, lines.length); j++) {
-        final next = lines[j].trim();
-        if (next.startsWith('Answer:')) {
-          answerLine = next;
-          break;
-        }
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestQuestion = "Su'aasha: $qLine";
-        bestAnswer = answerLine.isEmpty
-            ? ''
-            : "Jawaabta: ${answerLine.replaceFirst('Answer:', '').trim()}";
-      }
-    }
-
-    if (bestScore <= 0 || bestQuestion.isEmpty) return null;
-    if (bestAnswer.isEmpty) {
-      return (bestQuestion, "Jawaabta saxda ah quiz-kan ma muuqan.");
-    }
-    return (bestQuestion, bestAnswer);
-  }
-
-  String _extractMatchingSnippet(
-    String body,
-    String query, {
-    int maxChars = 420,
-  }) {
-    final lines = body
-        .split('\n')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return _shorten(body, maxChars);
-
-    final queryNorm = _normalize(query);
-    final tokens = queryNorm.split(' ').where((e) => e.length >= 2).toList();
-
-    var bestLine = lines.first;
-    var bestScore = -1;
-    for (final line in lines) {
-      var score = 0;
-      final n = _normalize(line);
-      if (n.contains(queryNorm)) score += 12;
-      for (final token in tokens) {
-        if (n.contains(token)) score += 2;
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        bestLine = line;
-      }
-    }
-
-    return _shorten(bestLine, maxChars);
-  }
-
-  List<_KnowledgeChunk> _buildPlacementKnowledgeChunks() {
-    final placement = <Map<String, String>>[
-      {
-        'q': 'Soomaaliya waxay xorriyadda qaadatay?',
-        'a': '1960',
-        'd': 'Soomaaliya waxay xornimada qaadatay 1-da Luulyo 1960.',
-      },
-      {
-        'q': 'Madaxweynihii ugu horreeyay ee Soomaaliya waa?',
-        'a': 'Aden Abdullah Osman Daar',
-        'd':
-            'Aaden Cabdulle Cismaan (Aden Adde) wuxuu ahaa madaxweynihii ugu horreeyay.',
-      },
-      {
-        'q': 'Dagaalkii 1aad ee Adduunka wuxuu billowday sanadkee?',
-        'a': '1914',
-        'd': 'Dagaalkii Koowaad ee Adduunka wuxuu bilowday 1914.',
-      },
-      {
-        'q': 'Wabiga ugu dheer Soomaaliya waa kee?',
-        'a': 'Shabeelle',
-        'd': 'Webiga Shabeelle waa webiga ugu dheer ee mara Soomaaliya.',
-      },
-      {
-        'q': 'Yaa gumeysan jiray koonfurta Soomaaliya?',
-        'a': 'Italy',
-        'd': 'Koonfurta Soomaaliya waxaa gumeysan jiray Talyaaniga.',
-      },
-      {
-        'q': 'Dagaalkii Ogaden War wuxuu dhacay sanadkee?',
-        'a': '1977',
-        'd': 'Dagaalkii Ogaadeen wuxuu si weyn u dhacay 1977.',
-      },
-      {
-        'q': 'Qorraxdu subaxdii halkee ayay ka soo baxdaa?',
-        'a': 'Bariga',
-        'd': 'Qorraxdu waxay ka soo baxdaa bari, waxayna u dhacdaa galbeed.',
-      },
-      {
-        'q': 'Caasimadda Soomaaliya waa?',
-        'a': 'Muqdisho',
-        'd': 'Muqdisho waa caasimadda Jamhuuriyadda Federaalka Soomaaliya.',
-      },
-      {
-        'q': 'Lacagta Soomaaliya waa?',
-        'a': 'Shilin Soomaali',
-        'd': 'Lacagta rasmiga ah waa Shilin Soomaali.',
-      },
-      {
-        'q': 'Soomaaliya waxay ku taallaa?',
-        'a': 'Geeska Afrika',
-        'd': 'Soomaaliya waxay ku taallaa Geeska Afrika.',
-      },
-      {
-        'q': 'Afka rasmiga ah ee ugu weyn Soomaaliya waa?',
-        'a': 'Af-Soomaali',
-        'd': 'Af-Soomaali waa afka rasmiga ah ee ugu weyn dalka.',
-      },
-      {
-        'q': 'Sannadka calanka Soomaaliya la sameeyay waa?',
-        'a': '1954',
-        'd': 'Calanka Soomaaliya waxaa la sameeyay 1954.',
-      },
-      {
-        'q': '4 + 4 = ?',
-        'a': '8',
-        'd': 'Marka 4 iyo 4 la isku daro waxay noqdaan 8.',
-      },
-      {'q': '7 + 3 = ?', 'a': '10', 'd': '7 iyo 3 markaad isku darto waa 10.'},
-      {
-        'q': '9 - 4 = ?',
-        'a': '5',
-        'd': '9 markaad ka jarto 4 waxaa soo haraya 5.',
-      },
-    ];
-
-    return placement
-        .map(
-          (e) => _KnowledgeChunk(
-            source: 'placement',
-            title: 'Placement Question',
-            subject: 'Placement',
-            classLevel: '',
-            body: "Su'aal: ${e['q']}\nJawaab: ${e['a']}\nSharaxaad: ${e['d']}",
-          ),
-        )
-        .toList();
-  }
-
-  String _normalize(String value) {
-    return value
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _shorten(String text, int length) {
-    final clean = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (clean.length <= length) return clean;
-    return "${clean.substring(0, length)}...";
   }
 
   void _scrollToBottom() {
@@ -676,7 +254,7 @@ class _TypingBubble extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Text(
-              "AI wuu aqrinayaa... wuu kuu qorayaa jawaabta.",
+              'AI wuu aqrinayaa... wuu kuu qorayaa jawaabta.',
               style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
             ),
           ),
@@ -691,42 +269,4 @@ class _ChatMessage {
   final bool isUser;
 
   const _ChatMessage({required this.text, required this.isUser});
-}
-
-class _KnowledgeChunk {
-  final String source;
-  final String title;
-  final String subject;
-  final String classLevel;
-  final String body;
-
-  const _KnowledgeChunk({
-    required this.source,
-    required this.title,
-    required this.subject,
-    required this.classLevel,
-    required this.body,
-  });
-
-  String get searchable {
-    return _normalize("$title $subject $classLevel $body");
-  }
-
-  String get titleNormalized => _normalize(title);
-  String get subjectNormalized => _normalize(subject);
-
-  String _normalize(String v) {
-    return v
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-}
-
-class _ScoredChunk {
-  final _KnowledgeChunk chunk;
-  final int score;
-
-  const _ScoredChunk({required this.chunk, required this.score});
 }

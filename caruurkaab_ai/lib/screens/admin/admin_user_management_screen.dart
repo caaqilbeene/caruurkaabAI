@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/admin_user_delete_service.dart';
 import 'admin_user_detail_screen.dart';
 
 class AdminUserManagementScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
   bool _isLoading = true;
   String _searchText = '';
   List<Map<String, dynamic>> _users = [];
+  final Set<String> _deletingUserIds = <String>{};
 
   @override
   void initState() {
@@ -58,6 +60,64 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
     final no = user['student_no'] as int?;
     if (no == null) return 'STD------';
     return 'STD${no.toString().padLeft(6, '0')}';
+  }
+
+  Future<void> _deleteUser(Map<String, dynamic> user) async {
+    final userId = (user['user_id'] ?? '').toString().trim();
+    if (userId.isEmpty || _deletingUserIds.contains(userId)) return;
+
+    final email = (user['email'] ?? '').toString().trim();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Permanently?'),
+        content: Text('Ma tirtirtaa user-kan?\n\n$email'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() {
+      _deletingUserIds.add(userId);
+    });
+
+    try {
+      await AdminUserDeleteService.deleteUserEverywhere(
+        userId: userId,
+        email: email.isEmpty ? null : email,
+      );
+      if (!mounted) return;
+      setState(() {
+        _users.removeWhere((u) => (u['user_id'] ?? '').toString() == userId);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User-ka si permanent ah ayaa loo tirtiyay.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is AdminUserDeleteException
+          ? e.message
+          : 'Delete failed. Fadlan mar kale isku day.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deletingUserIds.remove(userId);
+        });
+      }
+    }
   }
 
   @override
@@ -120,6 +180,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                       final email =
                           user['email']?.toString() ??
                           user['user_id'].toString();
+                      final userId = (user['user_id'] ?? '').toString();
+                      final deleting = _deletingUserIds.contains(userId);
                       return InkWell(
                         borderRadius: BorderRadius.circular(12),
                         onTap: () async {
@@ -188,6 +250,25 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> {
                                     fontSize: 12,
                                   ),
                                 ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                tooltip: 'Delete user',
+                                onPressed: deleting
+                                    ? null
+                                    : () => _deleteUser(user),
+                                icon: deleting
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.delete_forever_rounded,
+                                        color: Color(0xFFDC2626),
+                                      ),
                               ),
                             ],
                           ),

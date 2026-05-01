@@ -2,10 +2,12 @@ import 'package:caruurkaab_ai/screens/dashboard/profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../chatbot/student_ai_chatbot_screen.dart';
+import '../dashboard/progress_screen.dart';
 import '../../services/lesson_completion_progress_service.dart';
 import '../../services/profile_avatar_service.dart';
 import '../../services/student_class_service.dart';
@@ -79,6 +81,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
       avatarProvider: _avatarProvider,
       onPickImage: _pickImage,
     ),
+    const ProgressScreen(isEmbedded: true),
     const StudentAiChatbotScreen(),
     const ProfileScreen(isEmbedded: true),
   ];
@@ -132,6 +135,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
         const BottomNavigationBarItem(
           icon: Padding(
             padding: EdgeInsets.only(bottom: 4),
+            child: Icon(Icons.show_chart_rounded),
+          ),
+          label: "Horumar",
+        ),
+        const BottomNavigationBarItem(
+          icon: Padding(
+            padding: EdgeInsets.only(bottom: 4),
             child: Icon(Icons.smart_toy_rounded),
           ),
           label: "Wadahadal",
@@ -156,6 +166,26 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   }
 }
 
+class _StudentNotificationItem {
+  final String id;
+  final String userId;
+  final String title;
+  final String body;
+  final String kind;
+  final bool isRead;
+  final DateTime? createdAt;
+
+  const _StudentNotificationItem({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.body,
+    required this.kind,
+    required this.isRead,
+    required this.createdAt,
+  });
+}
+
 class StudentDashboardBody extends StatefulWidget {
   final ImageProvider? avatarProvider;
   final VoidCallback onPickImage;
@@ -171,6 +201,8 @@ class StudentDashboardBody extends StatefulWidget {
 }
 
 class _StudentDashboardBodyState extends State<StudentDashboardBody> {
+  static const String _broadcastSeenPrefsKey =
+      'student_dashboard_broadcast_seen_ids_v1';
   bool _showLevelDropdown = false;
   String? _selectedLevel;
   int _maxUnlockedLevel = 1;
@@ -178,6 +210,12 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
   bool _isProgressLoading = true;
   int _completedLessons = 0;
   int _totalLessons = 0;
+  bool _isLoadingNotifications = false;
+  final List<_StudentNotificationItem> _notifications = [];
+  int _unreadNotificationCount = 0;
+  RealtimeChannel? _notificationsChannel;
+  List<String> _subscribedNotificationKeys = const [];
+  final Set<String> _seenBroadcastIds = <String>{};
 
   //Firebase user displayName//
   String userName = "";
@@ -187,6 +225,9 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     _getUserName();
     _loadAssignedLevel();
     _loadLearningProgress();
+    _loadSeenBroadcastIds();
+    _subscribeNotifications();
+    _loadNotifications();
   }
 
   @override
@@ -196,6 +237,502 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     _getUserName();
     _loadAssignedLevel();
     _loadLearningProgress();
+    _subscribeNotifications();
+    _loadNotifications();
+  }
+
+  @override
+  void dispose() {
+    _unsubscribeNotifications();
+    super.dispose();
+  }
+
+  List<String> _notificationUserKeys() {
+    final keys = StudentProfileService.currentUserKeys();
+    if (keys.isNotEmpty) return keys;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const [];
+
+    final fallback = <String>[];
+    final email = user.email?.trim().toLowerCase();
+    if (email != null && email.isNotEmpty) fallback.add(email);
+    final uid = user.uid.trim();
+    if (uid.isNotEmpty && !fallback.contains(uid)) fallback.add(uid);
+    return fallback;
+  }
+
+  void _unsubscribeNotifications() {
+    final channel = _notificationsChannel;
+    _notificationsChannel = null;
+    if (channel != null) {
+      Supabase.instance.client.removeChannel(channel);
+    }
+    _subscribedNotificationKeys = const [];
+  }
+
+  void _subscribeNotifications() {
+    final keys = _notificationUserKeys();
+    final normalizedKeys = [...keys]..sort();
+    final current = [..._subscribedNotificationKeys]..sort();
+    if (_notificationsChannel != null &&
+        normalizedKeys.length == current.length &&
+        normalizedKeys.every(current.contains)) {
+      return;
+    }
+
+    _unsubscribeNotifications();
+
+    final channelName =
+        'student-notifications-${normalizedKeys.join('-').hashCode}';
+    final channel = Supabase.instance.client.channel(channelName);
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'student_notifications',
+      callback: (payload) {
+        final newUserId = (payload.newRecord['user_id'] ?? '')
+            .toString()
+            .trim();
+        final oldUserId = (payload.oldRecord['user_id'] ?? '')
+            .toString()
+            .trim();
+        if (normalizedKeys.contains(newUserId) ||
+            normalizedKeys.contains(oldUserId) ||
+            newUserId == '__all__' ||
+            oldUserId == '__all__') {
+          _loadNotifications();
+        }
+      },
+    );
+
+    channel.subscribe();
+    _notificationsChannel = channel;
+    _subscribedNotificationKeys = normalizedKeys;
+  }
+
+  Future<void> _loadNotifications() async {
+    if (_isLoadingNotifications) return;
+    final keys = _notificationUserKeys();
+
+    _isLoadingNotifications = true;
+    try {
+      final rows = keys.isEmpty
+          ? <dynamic>[]
+          : await Supabase.instance.client
+                .from('student_notifications')
+                .select('id,title,body,kind,is_read,created_at,user_id')
+                .inFilter('user_id', keys)
+                .order('created_at', ascending: false)
+                .limit(30);
+      final globalRows = await Supabase.instance.client
+          .from('student_notifications')
+          .select('id,title,body,kind,is_read,created_at,user_id')
+          .eq('user_id', '__all__')
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      final merged = <Map<String, dynamic>>[];
+      final seen = <String>{};
+      final prefs = await SharedPreferences.getInstance();
+      final hidden = prefs.getStringList('hidden_notifications') ?? [];
+
+      for (final raw in [...rows, ...globalRows]) {
+        final map = Map<String, dynamic>.from(raw);
+        final id = (map['id'] ?? '').toString();
+
+        if (hidden.contains(id)) continue;
+        if (id.isNotEmpty && seen.contains(id)) continue;
+        if (id.isNotEmpty) seen.add(id);
+
+        merged.add(map);
+      }
+      merged.sort((a, b) {
+        final aDate = DateTime.tryParse((a['created_at'] ?? '').toString());
+        final bDate = DateTime.tryParse((b['created_at'] ?? '').toString());
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+
+      final items = <_StudentNotificationItem>[];
+      for (final map in merged) {
+        final title = (map['title'] ?? '').toString().trim();
+        final body = (map['body'] ?? '').toString().trim();
+        if (title.isEmpty && body.isEmpty) continue;
+
+        items.add(
+          _StudentNotificationItem(
+            id: (map['id'] ?? '').toString(),
+            userId: (map['user_id'] ?? '').toString(),
+            title: title.isEmpty ? 'Notification' : title,
+            body: body,
+            kind: (map['kind'] ?? '').toString(),
+            isRead: _isNotificationRead(map),
+            createdAt: DateTime.tryParse(
+              (map['created_at'] ?? '').toString(),
+            )?.toLocal(),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _notifications
+          ..clear()
+          ..addAll(items);
+        _unreadNotificationCount = items.where((e) => !e.isRead).length;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _notifications.clear();
+        _unreadNotificationCount = 0;
+      });
+    } finally {
+      _isLoadingNotifications = false;
+    }
+  }
+
+  Future<void> _markAllNotificationsRead() async {
+    final keys = _notificationUserKeys();
+
+    try {
+      if (keys.isNotEmpty) {
+        await Supabase.instance.client
+            .from('student_notifications')
+            .update({'is_read': true})
+            .inFilter('user_id', keys);
+      }
+      await _rememberSeenBroadcastIds();
+    } catch (_) {
+      // Ignore update error.
+    }
+  }
+
+  bool _isNotificationRead(Map<String, dynamic> row) {
+    final userId = (row['user_id'] ?? '').toString().trim();
+    final id = (row['id'] ?? '').toString().trim();
+    final dbRead = row['is_read'] == true;
+    if (userId != '__all__') return dbRead;
+    if (dbRead) return true;
+    if (id.isEmpty) return false;
+    return _seenBroadcastIds.contains(id);
+  }
+
+  Future<void> _loadSeenBroadcastIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getStringList(_broadcastSeenPrefsKey) ?? const [];
+      _seenBroadcastIds
+        ..clear()
+        ..addAll(cached.where((e) => e.trim().isNotEmpty));
+    } catch (_) {
+      // Local cache is optional.
+    }
+  }
+
+  Future<void> _rememberSeenBroadcastIds() async {
+    final idsToAdd = _notifications
+        .where((item) => item.userId == '__all__' && item.id.trim().isNotEmpty)
+        .map((item) => item.id.trim())
+        .toSet();
+    if (idsToAdd.isEmpty) return;
+
+    _seenBroadcastIds.addAll(idsToAdd);
+    final trimmed = _seenBroadcastIds.toList(growable: false);
+    final toSave = trimmed.length <= 300
+        ? trimmed
+        : trimmed.sublist(trimmed.length - 300);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_broadcastSeenPrefsKey, toSave);
+    } catch (_) {
+      // Ignore local persistence issues.
+    }
+  }
+
+  String _formatNotificationTime(DateTime? date) {
+    if (date == null) return 'Maanta';
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final y = date.year.toString();
+    final hh = date.hour.toString().padLeft(2, '0');
+    final mm = date.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $hh:$mm';
+  }
+
+  Future<void> _deleteNotification(_StudentNotificationItem item) async {
+    setState(() {
+      _notifications.removeWhere((e) => e.id == item.id);
+    });
+
+    if (item.userId == '__all__') {
+      final prefs = await SharedPreferences.getInstance();
+      final hidden = prefs.getStringList('hidden_notifications') ?? [];
+      if (!hidden.contains(item.id)) {
+        hidden.add(item.id);
+        await prefs.setStringList('hidden_notifications', hidden);
+      }
+    } else {
+      try {
+        await Supabase.instance.client
+            .from('student_notifications')
+            .delete()
+            .eq('id', item.id);
+      } catch (_) {}
+    }
+  }
+
+  void _showNotificationDetails(
+    _StudentNotificationItem item, [
+    VoidCallback? onDeletedLocally,
+  ]) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          item.title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatNotificationTime(item.createdAt),
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                item.body,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF334155),
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteNotification(item);
+              if (onDeletedLocally != null) onDeletedLocally();
+            },
+            child: const Text(
+              'Tirtir',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D5AFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: const Text('Xir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openNotificationsSheet() async {
+    await _loadNotifications();
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFF8FAFC),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (sheetContext, setModalState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.64,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Fariimaha Admin-ka',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (_unreadNotificationCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0E7FF),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '$_unreadNotificationCount New',
+                                style: const TextStyle(
+                                  color: Color(0xFF3730A3),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: _notifications.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Weli fariin cusub lama soo gelinin.',
+                                  style: TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: _notifications.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) {
+                                  final item = _notifications[index];
+                                  return Dismissible(
+                                    key: Key(item.id),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.delete_outline,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                    ),
+                                    onDismissed: (_) {
+                                      _deleteNotification(item);
+                                      setModalState(() {});
+                                    },
+                                    child: InkWell(
+                                      onTap: () {
+                                        _showNotificationDetails(item, () {
+                                          setModalState(() {});
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: item.isRead
+                                                ? const Color(0xFFE5E7EB)
+                                                : const Color(0xFFBFDBFE),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    item.title,
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF111827),
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 15,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  _formatNotificationTime(
+                                                    item.createdAt,
+                                                  ),
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF9CA3AF),
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (item.body
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                item.body,
+                                                style: const TextStyle(
+                                                  color: Color(0xFF6B7280),
+                                                  fontSize: 13,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    await _markAllNotificationsRead();
+    await _loadNotifications();
   }
 
   Future<void> _loadAssignedLevel() async {
@@ -354,23 +891,58 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
                   ],
                 ),
               ),
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.notifications_none,
-                  color: Color(0xFF374151),
+              GestureDetector(
+                onTap: _openNotificationsSheet,
+                child: Container(
+                  width: 45,
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Center(
+                        child: Icon(
+                          Icons.notifications_none,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                      if (_unreadNotificationCount > 0)
+                        Positioned(
+                          right: 2,
+                          top: 2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              _unreadNotificationCount > 99
+                                  ? '99+'
+                                  : '$_unreadNotificationCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],

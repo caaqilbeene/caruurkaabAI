@@ -25,6 +25,7 @@ class _LessonListScreenState extends State<LessonListScreen> {
   List<Map<String, dynamic>> _looseLessons = [];
   Map<String, Map<String, dynamic>?> _nextLessonById = {};
   Map<String, String> _statusByLessonId = {};
+  Map<String, bool> _chapterUnlockedById = {};
   Set<String> _completedLessonIds = {};
 
   @override
@@ -116,7 +117,6 @@ class _LessonListScreenState extends State<LessonListScreen> {
           final bTime = b['created_at']?.toString() ?? '';
           return aTime.compareTo(bTime);
         });
-        _applyStatuses(entry.value);
       }
 
       loose.sort((a, b) {
@@ -124,7 +124,11 @@ class _LessonListScreenState extends State<LessonListScreen> {
         final bTime = b['created_at']?.toString() ?? '';
         return aTime.compareTo(bTime);
       });
-      _applyStatuses(loose);
+      _applyGlobalProgressionStatuses(
+        chapters: chapters,
+        grouped: grouped,
+        loose: loose,
+      );
 
       final nextMap = _buildNextLessonMap(chapters, grouped, loose);
 
@@ -171,20 +175,75 @@ class _LessonListScreenState extends State<LessonListScreen> {
     return nextMap;
   }
 
-  void _applyStatuses(List<Map<String, dynamic>> lessons) {
-    bool canAccess = true;
-    for (final lesson in lessons) {
-      final id = lesson['id']?.toString() ?? '';
-      final isCompleted = _completedLessonIds.contains(id);
-      if (!canAccess) {
-        _statusByLessonId[id] = 'locked';
-      } else if (isCompleted) {
-        _statusByLessonId[id] = 'completed';
-      } else {
-        _statusByLessonId[id] = 'start';
+  void _applyGlobalProgressionStatuses({
+    required List<Map<String, dynamic>> chapters,
+    required Map<String, List<Map<String, dynamic>>> grouped,
+    required List<Map<String, dynamic>> loose,
+  }) {
+    _statusByLessonId = {};
+    _chapterUnlockedById = {};
+
+    var previousChapterCompleted = true;
+
+    for (final chapter in chapters) {
+      final chapterId = chapter['id']?.toString() ?? '';
+      if (chapterId.isEmpty) continue;
+
+      final chapterLessons = grouped[chapterId] ?? const <Map<String, dynamic>>[];
+      final chapterUnlocked = previousChapterCompleted;
+      _chapterUnlockedById[chapterId] = chapterUnlocked;
+
+      if (!chapterUnlocked) {
+        for (final lesson in chapterLessons) {
+          final lessonId = lesson['id']?.toString() ?? '';
+          if (lessonId.isEmpty) continue;
+          _statusByLessonId[lessonId] = 'locked';
+        }
+        continue;
       }
-      if (!isCompleted) {
-        canAccess = false;
+
+      var chapterAllCompleted = true;
+      var canAccessLesson = true;
+      for (final lesson in chapterLessons) {
+        final lessonId = lesson['id']?.toString() ?? '';
+        if (lessonId.isEmpty) continue;
+        final isCompleted = _completedLessonIds.contains(lessonId);
+
+        if (!canAccessLesson) {
+          _statusByLessonId[lessonId] = 'locked';
+          chapterAllCompleted = false;
+          continue;
+        }
+
+        if (isCompleted) {
+          _statusByLessonId[lessonId] = 'completed';
+        } else {
+          _statusByLessonId[lessonId] = 'start';
+          canAccessLesson = false;
+          chapterAllCompleted = false;
+        }
+      }
+
+      previousChapterCompleted = chapterAllCompleted;
+    }
+
+    // Loose lessons: only after all chapters are completed.
+    var canAccessLoose = previousChapterCompleted;
+    for (final lesson in loose) {
+      final lessonId = lesson['id']?.toString() ?? '';
+      if (lessonId.isEmpty) continue;
+      final isCompleted = _completedLessonIds.contains(lessonId);
+
+      if (!canAccessLoose) {
+        _statusByLessonId[lessonId] = 'locked';
+        continue;
+      }
+
+      if (isCompleted) {
+        _statusByLessonId[lessonId] = 'completed';
+      } else {
+        _statusByLessonId[lessonId] = 'start';
+        canAccessLoose = false;
       }
     }
   }
@@ -305,20 +364,49 @@ class _LessonListScreenState extends State<LessonListScreen> {
                   ..._chapters.map((ch) {
                     final chLessons =
                         _lessonsByChapter[ch['id'].toString()] ?? [];
+                    final isChapterUnlocked =
+                        _chapterUnlockedById[ch['id']?.toString() ?? ''] ??
+                        false;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Text(
-                            ch['title'] ?? 'Cutubka',
-                            style: const TextStyle(
-                              color: Color(0xFF1D5AFF),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  ch['title'] ?? 'Cutubka',
+                                  style: TextStyle(
+                                    color: isChapterUnlocked
+                                        ? const Color(0xFF1D5AFF)
+                                        : const Color(0xFF9CA3AF),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              if (!isChapterUnlocked)
+                                const Icon(
+                                  Icons.lock_rounded,
+                                  color: Color(0xFF9CA3AF),
+                                  size: 18,
+                                ),
+                            ],
                           ),
                         ),
+                        if (!isChapterUnlocked)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 10),
+                            child: Text(
+                              'Marka hore dhammee casharrada iyo quiz-ka cutubka hore.',
+                              style: TextStyle(
+                                color: Color(0xFF9CA3AF),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         if (chLessons.isEmpty)
                           const Padding(
                             padding: EdgeInsets.only(bottom: 15),

@@ -5,10 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/student_profile_record.dart';
 import '../../services/lesson_completion_progress_service.dart';
 import '../../services/profile_avatar_service.dart';
+import '../../services/student_achievement_service.dart';
 import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
+import '../../utils/name_input_formatter.dart';
 import '../auth/login_signup.dart';
-import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -28,8 +29,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   int _totalLessonsCount = 0;
-  final int _starsEarned = 450;
-  final int _badgesEarned = 5;
+  int _starsEarned = 0;
+  int _badgesEarned = 0;
+  List<String> _earnedBadges = const [];
   bool _isSavingName = false;
 
   @override
@@ -40,18 +42,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadStudentProfile();
     _loadAssignedClass();
     _loadTotalLessonsCount();
+    _loadAchievements();
   }
 
   Future<void> _loadProfileName() async {
     final user = FirebaseAuth.instance.currentUser;
     await user?.reload();
     final refreshed = FirebaseAuth.instance.currentUser;
-    final displayName = refreshed?.displayName?.trim();
+    final displayName = normalizeUserDisplayName(
+      refreshed?.displayName?.trim() ?? '',
+    );
     final email = refreshed?.email?.trim();
 
     if (!mounted) return;
     setState(() {
-      if (displayName != null && displayName.isNotEmpty) {
+      if (displayName.isNotEmpty) {
         _userName = displayName;
       } else if (email != null && email.contains('@')) {
         _userName = email.split('@').first;
@@ -99,6 +104,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _totalLessonsCount = 0;
       });
     }
+  }
+
+  Future<void> _loadAchievements() async {
+    final summary = await StudentAchievementService.fetchForCurrentUser();
+    if (!mounted) return;
+    setState(() {
+      _starsEarned = summary.totalPoints;
+      _badgesEarned = summary.badgesEarned;
+      _earnedBadges = summary.badges;
+    });
   }
 
   String _formatJoinedDate(DateTime? date) {
@@ -176,17 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Color(0xFF14204B)),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
-        ],
+        actions: const [SizedBox(width: 8)],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -349,6 +354,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildStatCard(_badgesEarned.toString(), 'BADGES'),
               ],
             ),
+            if (_earnedBadges.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _earnedBadges
+                      .map(
+                        (badge) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Text(
+                            "🏅 $badge",
+                            style: const TextStyle(
+                              color: Color(0xFF1E3A8A),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
 
             // Logout Button
@@ -539,6 +577,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: TextField(
                       controller: nameController,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeFirstLetterFormatter()],
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(horizontal: 16),
@@ -634,7 +674,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? null
                           : () async {
                               // CHANGED: Save magaca cusub Firebase Auth + UI.
-                              final newName = nameController.text.trim();
+                              final newName = normalizeUserDisplayName(
+                                nameController.text,
+                              );
                               if (newName.isEmpty) return;
 
                               // CHANGED: magaca isla markiiba beddel (fast UX).

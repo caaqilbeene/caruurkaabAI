@@ -14,6 +14,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   int _totalUsers = 0;
   int _activeSessions = 0;
   int _newUsersLast7Days = 0;
+  String _topStudent = '--';
+  String _strugglingStudent = '--';
 
   @override
   void initState() {
@@ -51,6 +53,32 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         _newUsersLast7Days = newCount;
         _isLoading = false;
       });
+
+      try {
+        final perf = await Supabase.instance.client
+            .from('student_performance_summary')
+            .select('user_id, accuracy_percent, points_total')
+            .order('accuracy_percent', ascending: false);
+        if (!mounted) return;
+        if (perf.isNotEmpty) {
+          final perfList = List<Map<String, dynamic>>.from(perf);
+          final top = perfList.first;
+          perfList.sort((a, b) {
+            final aAcc =
+                double.tryParse(a['accuracy_percent']?.toString() ?? '') ?? 0;
+            final bAcc =
+                double.tryParse(b['accuracy_percent']?.toString() ?? '') ?? 0;
+            return aAcc.compareTo(bAcc);
+          });
+          final struggling = perfList.first;
+          setState(() {
+            _topStudent = top['user_id']?.toString() ?? '--';
+            _strugglingStudent = struggling['user_id']?.toString() ?? '--';
+          });
+        }
+      } catch (_) {
+        // Ignore if view not ready.
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -120,6 +148,14 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
             ),
             const SizedBox(height: 10),
             _buildCard('Total Users', totalUsers),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _buildCard('Top Student', _topStudent)),
+                const SizedBox(width: 10),
+                Expanded(child: _buildCard('Needs Help', _strugglingStudent)),
+              ],
+            ),
           ],
           const SizedBox(height: 16),
           const Text(

@@ -15,7 +15,6 @@ class SplashScreenView extends StatefulWidget {
 }
 
 class _SplashScreenViewState extends State<SplashScreenView> {
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -117,43 +116,50 @@ class _SplashScreenViewState extends State<SplashScreenView> {
 
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 50),
-              child: Column(
-                children: [
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(seconds: 3),
+                builder: (context, value, _) {
+                  final percent = (value * 100).round();
+                  return Column(
                     children: [
-                      Text(
-                        "INITIALIZING",
-                        style: TextStyle(
-                          color: Color(0xFF1D5AFF),
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                          fontSize: 12,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "INITIALIZING",
+                            style: TextStyle(
+                              color: Color(0xFF1D5AFF),
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            "$percent%",
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        "75%",
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: value,
+                          minHeight: 8,
+                          backgroundColor: const Color(0xFFE5EDFF),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF1D5AFF),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: const LinearProgressIndicator(
-                      value: 0.75,
-                      minHeight: 8,
-                      backgroundColor: Color(0xFFE5EDFF),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFF1D5AFF),
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
 

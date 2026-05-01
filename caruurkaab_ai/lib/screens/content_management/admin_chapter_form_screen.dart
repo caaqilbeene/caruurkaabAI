@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/supabase_schema_safe_write_service.dart';
+
 class AdminChapterFormScreen extends StatefulWidget {
   final Map<String, dynamic>? chapter;
 
@@ -126,14 +128,17 @@ class _AdminChapterFormScreenState extends State<AdminChapterFormScreen> {
     };
 
     try {
-      if (_isEdit) {
-        await Supabase.instance.client
-            .from('chapters')
-            .update(payload)
-            .eq('id', widget.chapter!['id']);
-      } else {
-        await Supabase.instance.client.from('chapters').insert(payload);
-      }
+      final result = _isEdit
+          ? await SupabaseSchemaSafeWriteService.updateWithFallback(
+              table: 'chapters',
+              payload: payload,
+              eqColumn: 'id',
+              eqValue: widget.chapter!['id'],
+            )
+          : await SupabaseSchemaSafeWriteService.insertWithFallback(
+              table: 'chapters',
+              payload: payload,
+            );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -144,13 +149,23 @@ class _AdminChapterFormScreenState extends State<AdminChapterFormScreen> {
             ),
           ),
         );
+        if (result.removedColumns.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "DB-ga wali ma hayo columns: ${result.removedColumns.join(', ')}. Cutubka waa la keydiyay.",
+              ),
+            ),
+          );
+        }
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Cilad ayaa dhacday: $e')));
+        final friendly = SupabaseSchemaSafeWriteService.friendlyError(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cilad ayaa dhacday: $friendly')),
+        );
       }
     }
   }

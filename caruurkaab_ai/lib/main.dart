@@ -5,7 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const AppBootstrap());
 }
@@ -110,18 +110,34 @@ class MyApp extends StatelessWidget {
       title: 'Caruurkaab AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Inter', // Or any default font you prefer
+        fontFamily: 'Inter',
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1D5AFF)),
         useMaterial3: true,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       builder: (context, child) {
-        if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
+        var appChild = child ?? const SizedBox.shrink();
+
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+          final media = MediaQuery.of(context);
+          appChild = MediaQuery(
+            data: media.copyWith(
+              textScaler: media.textScaler.clamp(
+                minScaleFactor: 0.9,
+                maxScaleFactor: 1.1,
+              ),
+            ),
+            child: appChild,
+          );
+        }
+
+        if (!kIsWeb || child == null) return appChild;
         return ColoredBox(
           color: const Color(0xFFEFF2F7),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
-              child: child,
+              child: appChild,
             ),
           ),
         );

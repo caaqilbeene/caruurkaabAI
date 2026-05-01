@@ -539,6 +539,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:caruurkaab_ai/screens/placement/placement_flow.dart';
+import 'package:caruurkaab_ai/utils/name_input_formatter.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -571,14 +572,22 @@ class _SignupScreenState extends State<SignupScreen> {
     if (!signUpFormKey.currentState!.validate()) return;
     setState(() => isLoading = true);
     try {
+      final normalizedName = normalizeUserDisplayName(fullNameController.text);
+      if (normalizedName.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Magaca waa qasab')));
+        }
+        return;
+      }
+
       UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
             email: emailController.text.trim(),
             password: passwordController.text.trim(),
           );
-      await userCredential.user!.updateDisplayName(
-        fullNameController.text.trim(),
-      );
+      await userCredential.user!.updateDisplayName(normalizedName);
       await userCredential.user!.reload();
 
       await userCredential.user!.sendEmailVerification();
@@ -684,6 +693,10 @@ class _SignupScreenState extends State<SignupScreen> {
                         const SizedBox(height: 6),
                         TextFormField(
                           controller: fullNameController,
+                          textCapitalization: TextCapitalization.words,
+                          inputFormatters: const [
+                            CapitalizeFirstLetterFormatter(),
+                          ],
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Magaca waa qasab";

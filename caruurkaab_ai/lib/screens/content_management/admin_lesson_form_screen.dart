@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/supabase_schema_safe_write_service.dart';
+
 class AdminLessonFormScreen extends StatefulWidget {
   final Map<String, dynamic>? lesson;
 
@@ -748,16 +750,17 @@ class _AdminLessonFormScreenState extends State<AdminLessonFormScreen> {
                 };
 
                 try {
-                  if (_isEdit) {
-                    await Supabase.instance.client
-                        .from('lessons')
-                        .update(payload)
-                        .eq('id', widget.lesson!['id']);
-                  } else {
-                    await Supabase.instance.client
-                        .from('lessons')
-                        .insert(payload);
-                  }
+                  final result = _isEdit
+                      ? await SupabaseSchemaSafeWriteService.updateWithFallback(
+                          table: 'lessons',
+                          payload: payload,
+                          eqColumn: 'id',
+                          eqValue: widget.lesson!['id'],
+                        )
+                      : await SupabaseSchemaSafeWriteService.insertWithFallback(
+                          table: 'lessons',
+                          payload: payload,
+                        );
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -768,12 +771,24 @@ class _AdminLessonFormScreenState extends State<AdminLessonFormScreen> {
                       ),
                     ),
                   );
+                  if (result.removedColumns.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          "DB-ga wali ma hayo columns: ${result.removedColumns.join(', ')}. Lesson-ka waa la keydiyay.",
+                        ),
+                      ),
+                    );
+                  }
                   Navigator.pop(context, true);
                 } catch (e) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+                  final friendly = SupabaseSchemaSafeWriteService.friendlyError(
+                    e,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Save failed: $friendly')),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(

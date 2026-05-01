@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/student_profile_service.dart';
@@ -34,13 +36,19 @@ class QuizQuestionScreen extends StatefulWidget {
 class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   int _currentQuestionIndex = 0;
   int _score = 0;
+  int _wrong = 0;
+  int _earnedPoints = 0;
 
   bool _answered = false;
   int? _selectedOptionIndex;
+  bool _showHint = false;
+  bool _currentQuestionEvaluated = false;
 
   bool _isLoading = true;
-  String? _loadError;
   final List<_QuizQuestion> _questions = [];
+
+  String? _quizId;
+  int _quizPassingScorePercent = 60;
 
   @override
   void initState() {
@@ -67,161 +75,21 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     return int.tryParse(cleaned) ?? cleaned;
   }
 
-  Future<Map<String, dynamic>?> _fetchLatestQuiz({
-    String? subject,
-    int? classLevel,
-    String? lessonId,
-    String? chapterId,
-  }) async {
-    var query = Supabase.instance.client.from('quizzes').select('questions');
-
-    if (subject != null && subject.trim().isNotEmpty) {
-      query = query.eq('subject_name', subject.trim());
-    }
-    if (classLevel != null) {
-      query = query.eq('class_level', classLevel);
-    }
-    if (lessonId != null && lessonId.trim().isNotEmpty) {
-      query = query.eq('lesson_id', _parseIdValue(lessonId));
-    }
-    if (chapterId != null && chapterId.trim().isNotEmpty) {
-      query = query.eq('chapter_id', _parseIdValue(chapterId));
+  String? _extractMissingQuizColumn(PostgrestException e) {
+    final combined = '${e.message} ${e.details} ${e.hint}';
+    final pgrstMatch = RegExp(
+      r"Could not find the '([^']+)' column of 'quizzes'",
+      caseSensitive: false,
+    ).firstMatch(combined);
+    if (pgrstMatch != null) {
+      return pgrstMatch.group(1);
     }
 
-    return query.order('created_at', ascending: false).limit(1).maybeSingle();
-  }
-
-  Future<void> _loadQuestions() async {
-    try {
-      final subject = _normalizeSubject(widget.subjectName);
-      final lessonId = widget.lessonId.trim();
-      final chapterId = widget.chapterId?.trim();
-      final hasExactTarget =
-          lessonId.isNotEmpty || (chapterId != null && chapterId.isNotEmpty);
-
-      Map<String, dynamic>? data;
-
-      // 1) Strict match (subject + class + lesson/chapter).
-      if (lessonId.isNotEmpty) {
-        data = await _fetchLatestQuiz(
-          subject: subject,
-          classLevel: widget.classLevel,
-          lessonId: lessonId,
-        );
-      } else if (chapterId != null && chapterId.isNotEmpty) {
-        data = await _fetchLatestQuiz(
-          subject: subject,
-          classLevel: widget.classLevel,
-          chapterId: chapterId,
-        );
-      }
-
-      // 2) Fallbacks si looga gudbo subject naming mismatch (Af Soomaali variants).
-      if (data == null && lessonId.isNotEmpty) {
-        data = await _fetchLatestQuiz(
-          classLevel: widget.classLevel,
-          lessonId: lessonId,
-        );
-      }
-      if (data == null && lessonId.isNotEmpty) {
-        data = await _fetchLatestQuiz(lessonId: lessonId);
-      }
-
-      if (data == null && chapterId != null && chapterId.isNotEmpty) {
-        data = await _fetchLatestQuiz(
-          classLevel: widget.classLevel,
-          chapterId: chapterId,
-        );
-      }
-      if (data == null && chapterId != null && chapterId.isNotEmpty) {
-        data = await _fetchLatestQuiz(chapterId: chapterId);
-      }
-
-      // 3) Last fallback kaliya marka lesson/chapter target la waayo.
-      // Tani waxay ka hortageysaa in quiz kale (cutub kale) uu kusoo noqnoqdo.
-      if (!hasExactTarget) {
-        data ??= await _fetchLatestQuiz(
-          subject: subject,
-          classLevel: widget.classLevel,
-        );
-      }
-
-      final questions = data?['questions'];
-      if (questions is List) {
-        for (final raw in questions) {
-          if (raw is! Map) continue;
-          final questionText = raw['question']?.toString().trim() ?? '';
-          final optionsRaw = raw['options'];
-          final options = optionsRaw is List
-              ? optionsRaw.map((o) => o.toString()).toList()
-              : <String>[];
-          final correctIndex = raw['correctIndex'] is int
-              ? raw['correctIndex'] as int
-              : int.tryParse(raw['correctIndex']?.toString() ?? '') ?? 0;
-          final imageUrl = raw['imageUrl']?.toString().trim();
-
-          if (questionText.isEmpty || options.isEmpty) continue;
-
-          _questions.add(
-            _QuizQuestion(
-              question: questionText,
-              options: options,
-              correctIndex: correctIndex.clamp(0, options.length - 1),
-              imageUrl: imageUrl?.isEmpty ?? true ? null : imageUrl,
-            ),
-          );
-        }
-      }
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _loadError = e.toString();
-      });
-    }
-  }
-
-  void _submitAnswer() {
-    if (!_answered) return;
-
-    final currentQ = _questions[_currentQuestionIndex];
-    if (_selectedOptionIndex == currentQ.correctIndex) {
-      _score++;
-    }
-
-    if (_currentQuestionIndex < _questions.length - 1) {
-      setState(() {
-        _currentQuestionIndex++;
-        _answered = false;
-        _selectedOptionIndex = null;
-      });
-    } else {
-      final isPass = _score >= (_questions.length * 0.6).ceil();
-      if (isPass) {
-        _markLessonComplete();
-      }
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => QuizResultScreen(
-            score: _score,
-            total: _questions.length,
-            lessonTitle: widget.lessonTitle,
-            subjectName: widget.subjectName,
-            classLevel: widget.classLevel,
-            chapterId: widget.chapterId,
-            lessonId: widget.lessonId,
-            nextLessonId: widget.nextLessonId,
-            nextLessonTitle: widget.nextLessonTitle,
-            nextLessonChapterId: widget.nextLessonChapterId,
-          ),
-        ),
-      );
-    }
+    final pgMatch = RegExp(
+      r'column\s+quizzes\.([a-zA-Z0-9_]+)\s+does not exist',
+      caseSensitive: false,
+    ).firstMatch(combined);
+    return pgMatch?.group(1);
   }
 
   String _getUserId() {
@@ -236,6 +104,208 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     final uid = user?.uid;
     if (uid != null && uid.isNotEmpty) return uid;
     return 'guest';
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchLatestQuizzes({
+    String? subject,
+    int? classLevel,
+    String? lessonId,
+    String? chapterId,
+  }) async {
+    final selectedColumns = <String>['id', 'questions', 'passing_score'];
+    final removedColumns = <String>{};
+
+    while (true) {
+      try {
+        var query = Supabase.instance.client
+            .from('quizzes')
+            .select(selectedColumns.join(','));
+
+        if (subject != null && subject.trim().isNotEmpty) {
+          query = query.eq('subject_name', subject.trim());
+        }
+        if (classLevel != null) {
+          query = query.eq('class_level', classLevel);
+        }
+        if (lessonId != null && lessonId.trim().isNotEmpty) {
+          query = query.eq('lesson_id', _parseIdValue(lessonId));
+        }
+        if (chapterId != null && chapterId.trim().isNotEmpty) {
+          query = query.eq('chapter_id', _parseIdValue(chapterId));
+        }
+
+        final rows = await query
+            .order('created_at', ascending: false)
+            .limit(20);
+        return rows.map((row) => Map<String, dynamic>.from(row)).toList();
+      } on PostgrestException catch (e) {
+        final missingColumn = _extractMissingQuizColumn(e);
+        final canRecover =
+            (e.code == 'PGRST204' || e.code == '42703') &&
+            missingColumn != null &&
+            selectedColumns.contains(missingColumn) &&
+            !removedColumns.contains(missingColumn);
+        if (!canRecover) rethrow;
+        selectedColumns.remove(missingColumn);
+        removedColumns.add(missingColumn);
+      }
+    }
+  }
+
+  bool _hasUsableQuestions(Map<String, dynamic> quiz) {
+    final questions = quiz['questions'];
+    if (questions is! List || questions.isEmpty) return false;
+
+    for (final raw in questions) {
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      final questionText = map['question']?.toString().trim() ?? '';
+      final optionsRaw = map['options'];
+      final options = optionsRaw is List
+          ? optionsRaw.map((o) => o.toString().trim()).toList()
+          : <String>[];
+      if (questionText.isNotEmpty && options.length >= 2) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<Map<String, dynamic>?> _fetchFirstUsableQuiz({
+    String? subject,
+    int? classLevel,
+    String? lessonId,
+    String? chapterId,
+  }) async {
+    final rows = await _fetchLatestQuizzes(
+      subject: subject,
+      classLevel: classLevel,
+      lessonId: lessonId,
+      chapterId: chapterId,
+    );
+    for (final row in rows) {
+      if (_hasUsableQuestions(row)) return row;
+    }
+    return null;
+  }
+
+  String _normalizeDifficulty(String value) {
+    final lower = value.trim().toLowerCase();
+    if (lower == 'easy' || lower == 'medium' || lower == 'hard') {
+      return lower;
+    }
+    return 'medium';
+  }
+
+  int _defaultPointsForDifficulty(String difficulty) {
+    return switch (_normalizeDifficulty(difficulty)) {
+      'easy' => 10,
+      'medium' => 15,
+      'hard' => 20,
+      _ => 15,
+    };
+  }
+
+  Future<void> _loadQuestions() async {
+    try {
+      final subject = _normalizeSubject(widget.subjectName);
+      final lessonId = widget.lessonId.trim();
+      final chapterId = widget.chapterId?.trim();
+      final hasChapterTarget = chapterId != null && chapterId.isNotEmpty;
+      final hasLessonTarget = lessonId.isNotEmpty;
+
+      Map<String, dynamic>? data;
+
+      // First priority: lesson-specific quiz (mid cashar-gaar ah).
+      if (hasLessonTarget) {
+        data = await _fetchFirstUsableQuiz(
+          subject: subject,
+          classLevel: widget.classLevel,
+          lessonId: lessonId,
+        );
+        data ??= await _fetchFirstUsableQuiz(
+          classLevel: widget.classLevel,
+          lessonId: lessonId,
+        );
+        data ??= await _fetchFirstUsableQuiz(lessonId: lessonId);
+      }
+
+      // Chapter-level fallback only when lesson id is not available.
+      if (data == null && !hasLessonTarget && hasChapterTarget) {
+        data = await _fetchFirstUsableQuiz(
+          subject: subject,
+          classLevel: widget.classLevel,
+          chapterId: chapterId,
+        );
+        data ??= await _fetchFirstUsableQuiz(
+          classLevel: widget.classLevel,
+          chapterId: chapterId,
+        );
+        data ??= await _fetchFirstUsableQuiz(chapterId: chapterId);
+      } else if (data == null && !hasLessonTarget) {
+        data = await _fetchFirstUsableQuiz(
+          subject: subject,
+          classLevel: widget.classLevel,
+        );
+        data ??= await _fetchFirstUsableQuiz(subject: subject);
+      }
+
+      _quizId = data?['id']?.toString();
+      _quizPassingScorePercent =
+          int.tryParse(data?['passing_score']?.toString() ?? '') ?? 60;
+      _quizPassingScorePercent = _quizPassingScorePercent.clamp(1, 100);
+
+      final questions = data?['questions'];
+      if (questions is List) {
+        for (final raw in questions) {
+          if (raw is! Map) continue;
+          final map = Map<String, dynamic>.from(raw);
+
+          final questionText = map['question']?.toString().trim() ?? '';
+          final optionsRaw = map['options'];
+          final options = optionsRaw is List
+              ? optionsRaw.map((o) => o.toString().trim()).toList()
+              : <String>[];
+          final correctIndex = map['correctIndex'] is int
+              ? map['correctIndex'] as int
+              : int.tryParse(map['correctIndex']?.toString() ?? '') ?? 0;
+          final imageUrl = map['imageUrl']?.toString().trim();
+          final hint = map['hint']?.toString().trim() ?? '';
+          final difficulty = _normalizeDifficulty(
+            (map['difficulty'] ?? 'medium').toString(),
+          );
+          final type = (map['type'] ?? 'mcq').toString().trim();
+          final points =
+              int.tryParse(map['points']?.toString() ?? '') ??
+              _defaultPointsForDifficulty(difficulty);
+
+          if (questionText.isEmpty || options.length < 2) continue;
+
+          _questions.add(
+            _QuizQuestion(
+              question: questionText,
+              options: options.take(3).toList(),
+              correctIndex: correctIndex.clamp(0, options.length - 1),
+              imageUrl: imageUrl?.isEmpty ?? true ? null : imageUrl,
+              hint: hint,
+              difficulty: difficulty,
+              type: type.isEmpty ? 'mcq' : type,
+              points: points <= 0
+                  ? _defaultPointsForDifficulty(difficulty)
+                  : points,
+            ),
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _markLessonComplete() async {
@@ -254,12 +324,191 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     }
   }
 
+  List<String> _resolveBadges({
+    required int totalCorrect,
+    required int totalPoints,
+  }) {
+    final badges = <String>[];
+    if (totalCorrect >= 10) badges.add('Beginner');
+    if (totalCorrect >= 30) badges.add('Smart Kid');
+    final isMath = widget.subjectName.toLowerCase().contains('xisaab');
+    if (isMath && totalCorrect >= 50) badges.add('Math Master');
+    if (!isMath && totalPoints >= 800) badges.add('Math Master');
+    return badges;
+  }
+
+  Future<_AdvancedProgressResult> _persistAdvancedProgress() async {
+    final db = Supabase.instance.client;
+    final userId = _getUserId();
+    final lessonId = widget.lessonId.trim();
+    final now = DateTime.now().toUtc();
+    final today = now.toIso8601String().substring(0, 10);
+
+    int totalCorrect = _score;
+    int totalPoints = _earnedPoints;
+
+    try {
+      final rows = await db
+          .from('student_quiz_progress')
+          .select('correct_count,total_points')
+          .eq('user_id', userId);
+      for (final row in rows) {
+        final map = Map<String, dynamic>.from(row);
+        totalCorrect +=
+            int.tryParse(map['correct_count']?.toString() ?? '') ?? 0;
+        totalPoints += int.tryParse(map['total_points']?.toString() ?? '') ?? 0;
+      }
+    } catch (_) {
+      // Ignore aggregate read failure.
+    }
+
+    final badges = _resolveBadges(
+      totalCorrect: totalCorrect,
+      totalPoints: totalPoints,
+    );
+
+    try {
+      await db.from('student_quiz_progress').upsert({
+        'user_id': userId,
+        'lesson_id': lessonId,
+        'quiz_id': _quizId,
+        'correct_count': _score,
+        'wrong_count': _wrong,
+        'level': 1,
+        'total_points': _earnedPoints,
+        'badges': badges,
+        'attempt_date': today,
+      }, onConflict: 'user_id,lesson_id,attempt_date');
+    } catch (_) {
+      // Ignore progress write failure.
+    }
+
+    bool dailyRewardUnlocked = false;
+    try {
+      final target = 5;
+      final answeredThisQuiz = min(target, _questions.length);
+      final correctThisQuiz = min(target, _score);
+
+      final existing = await db
+          .from('student_daily_challenges')
+          .select(
+            'answered_questions,correct_questions,completed,points_earned,reward_claimed',
+          )
+          .eq('user_id', userId)
+          .eq('challenge_date', today)
+          .maybeSingle();
+
+      final prevAnswered = existing == null
+          ? 0
+          : int.tryParse(existing['answered_questions']?.toString() ?? '') ?? 0;
+      final prevCorrect = existing == null
+          ? 0
+          : int.tryParse(existing['correct_questions']?.toString() ?? '') ?? 0;
+      final prevPoints = existing == null
+          ? 0
+          : int.tryParse(existing['points_earned']?.toString() ?? '') ?? 0;
+      final wasCompleted = existing != null && existing['completed'] == true;
+      final wasRewardClaimed =
+          existing != null && existing['reward_claimed'] == true;
+
+      final nextAnswered = min(target, prevAnswered + answeredThisQuiz);
+      final nextCorrect = min(target, prevCorrect + correctThisQuiz);
+      final nowCompleted = nextAnswered >= target;
+      dailyRewardUnlocked = nowCompleted && !wasCompleted;
+
+      await db.from('student_daily_challenges').upsert({
+        'user_id': userId,
+        'challenge_date': today,
+        'target_questions': target,
+        'answered_questions': nextAnswered,
+        'correct_questions': nextCorrect,
+        'completed': nowCompleted,
+        'points_earned': prevPoints + _earnedPoints,
+        'reward_claimed': wasRewardClaimed || dailyRewardUnlocked,
+      }, onConflict: 'user_id,challenge_date');
+
+      if (dailyRewardUnlocked) {
+        await db.from('student_notifications').insert({
+          'user_id': userId,
+          'title': 'Daily Challenge Completed',
+          'body': '🎁 Maanta challenge-ka waad dhamaysay!',
+          'kind': 'daily_challenge',
+          'is_read': false,
+        });
+      }
+    } catch (_) {
+      // Ignore daily challenge failure.
+    }
+
+    return _AdvancedProgressResult(
+      badges: badges,
+      dailyRewardUnlocked: dailyRewardUnlocked,
+    );
+  }
+
   void _onOptionSelected(int index) {
     if (_answered) return;
     setState(() {
       _selectedOptionIndex = index;
       _answered = true;
     });
+  }
+
+  Future<void> _submitAnswer() async {
+    if (!_answered) return;
+
+    final currentQ = _questions[_currentQuestionIndex];
+    if (!_currentQuestionEvaluated) {
+      final isCorrect = _selectedOptionIndex == currentQ.correctIndex;
+      if (isCorrect) {
+        _score++;
+        _earnedPoints += currentQ.points;
+      } else {
+        _wrong++;
+      }
+      _currentQuestionEvaluated = true;
+    }
+
+    if (_currentQuestionIndex < _questions.length - 1) {
+      setState(() {
+        _currentQuestionIndex++;
+        _answered = false;
+        _selectedOptionIndex = null;
+        _showHint = false;
+        _currentQuestionEvaluated = false;
+      });
+      return;
+    }
+
+    final requiredCorrect =
+        (_questions.length * (_quizPassingScorePercent / 100)).ceil();
+    final isPass = _score >= requiredCorrect;
+    if (isPass) {
+      await _markLessonComplete();
+    }
+    final advanced = await _persistAdvancedProgress();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuizResultScreen(
+          score: _score,
+          total: _questions.length,
+          wrong: _wrong,
+          earnedPoints: _earnedPoints,
+          badges: advanced.badges,
+          dailyRewardUnlocked: advanced.dailyRewardUnlocked,
+          lessonTitle: widget.lessonTitle,
+          subjectName: widget.subjectName,
+          classLevel: widget.classLevel,
+          chapterId: widget.chapterId,
+          lessonId: widget.lessonId,
+          nextLessonId: widget.nextLessonId,
+          nextLessonTitle: widget.nextLessonTitle,
+          nextLessonChapterId: widget.nextLessonChapterId,
+        ),
+      ),
+    );
   }
 
   @override
@@ -286,9 +535,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              _loadError != null
-                  ? "Quiz lama helin. Fadlan ku dar Su’aalo admin-ka.\n\n$_loadError"
-                  : "Quiz lama helin. Fadlan ku dar Su’aalo admin-ka.",
+              "Casharkan wali quiz looma soo xareynin.",
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B7280)),
             ),
@@ -366,6 +613,35 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
                           ),
                         ),
                       ),
+                    if (currentQ.hint.trim().isNotEmpty) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _showHint
+                              ? null
+                              : () => setState(() => _showHint = true),
+                          icon: const Icon(Icons.lightbulb_outline),
+                          label: const Text('Show Hint'),
+                        ),
+                      ),
+                      if (_showHint)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFDE68A)),
+                          ),
+                          child: Text(
+                            "Hint: ${currentQ.hint}",
+                            style: const TextStyle(
+                              color: Color(0xFF92400E),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
                     _buildOptionsList(currentQ),
                   ],
                 ),
@@ -420,8 +696,8 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   Widget _buildOptionsList(_QuizQuestion q) {
     return Column(
       children: List.generate(q.options.length, (index) {
-        bool isSelected = _selectedOptionIndex == index;
-        bool isCorrect = index == q.correctIndex;
+        final isSelected = _selectedOptionIndex == index;
+        final isCorrect = index == q.correctIndex;
 
         Color bgColor = Colors.white;
         Color borderColor = const Color(0xFFE5E7EB);
@@ -486,11 +762,29 @@ class _QuizQuestion {
   final List<String> options;
   final int correctIndex;
   final String? imageUrl;
+  final String hint;
+  final String difficulty;
+  final String type;
+  final int points;
 
   const _QuizQuestion({
     required this.question,
     required this.options,
     required this.correctIndex,
     this.imageUrl,
+    required this.hint,
+    required this.difficulty,
+    required this.type,
+    required this.points,
+  });
+}
+
+class _AdvancedProgressResult {
+  final List<String> badges;
+  final bool dailyRewardUnlocked;
+
+  const _AdvancedProgressResult({
+    required this.badges,
+    required this.dailyRewardUnlocked,
   });
 }

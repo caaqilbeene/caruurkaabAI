@@ -1,6 +1,7 @@
-# Cloud Function: Hal‑Click Delete (Firebase + Supabase)
+# Cloud Functions: Admin Utilities
 
-Function name: `deleteUserEverywhere`
+Functions:
+- `deleteUserEverywhere`
 
 ## Waxa ay qabato
 - Firebase Auth: user delete

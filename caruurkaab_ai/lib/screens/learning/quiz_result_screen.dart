@@ -6,6 +6,10 @@ import 'lesson_list_screen.dart';
 class QuizResultScreen extends StatelessWidget {
   final int score;
   final int total;
+  final int wrong;
+  final int earnedPoints;
+  final List<String> badges;
+  final bool dailyRewardUnlocked;
   final String lessonTitle;
   final String subjectName;
   final int classLevel;
@@ -19,6 +23,10 @@ class QuizResultScreen extends StatelessWidget {
     super.key,
     required this.score,
     required this.total,
+    required this.wrong,
+    required this.earnedPoints,
+    required this.badges,
+    required this.dailyRewardUnlocked,
     required this.lessonTitle,
     required this.subjectName,
     required this.classLevel,
@@ -172,6 +180,78 @@ class QuizResultScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 12,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _StatMini(label: 'Wrong', value: wrong.toString()),
+                    _StatMini(label: 'Points', value: earnedPoints.toString()),
+                    _StatMini(label: 'Badges', value: badges.length.toString()),
+                  ],
+                ),
+              ),
+              if (badges.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: badges
+                      .map(
+                        (badge) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Text(
+                            "🏅 $badge",
+                            style: const TextStyle(
+                              color: Color(0xFF1E3A8A),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+              if (dailyRewardUnlocked) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFA7F3D0)),
+                  ),
+                  child: const Text(
+                    "🎁 Daily Challenge waa dhammaatay! Reward waa kuu furmay.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF065F46),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
 
               const Spacer(),
 
@@ -235,7 +315,8 @@ class QuizResultScreen extends StatelessWidget {
                     );
                   } else {
                     Navigator.of(context).popUntil(
-                      (route) => route.isFirst || route.settings.name == '/home',
+                      (route) =>
+                          route.isFirst || route.settings.name == '/home',
                     );
                   }
                 },
@@ -272,6 +353,39 @@ class QuizResultScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StatMini extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatMini({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: Color(0xFF111827),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            color: Color(0xFF6B7280),
+            fontWeight: FontWeight.w800,
+            fontSize: 11,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
     );
   }
 }
