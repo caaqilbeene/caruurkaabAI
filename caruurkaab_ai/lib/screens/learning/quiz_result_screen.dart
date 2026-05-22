@@ -62,7 +62,6 @@ class QuizResultScreen extends StatelessWidget {
   }
 
   Future<void> _openNext(BuildContext context, {required bool isPass}) async {
-    final nextId = nextLessonId?.trim() ?? '';
     final isChapterQuiz = chapterId != null && lessonId.trim().isEmpty;
     final className = 'Fasalka $classLevel';
 
@@ -134,21 +133,26 @@ class QuizResultScreen extends StatelessWidget {
       }
     }
 
-    if (nextId.isNotEmpty) {
+    // Ka bilow inaan ku celino LessonListScreen haddii uu jiro stack-ga
+    bool popped = false;
+    Navigator.of(context).popUntil((route) {
+      if (route.settings.name == '/lesson_list') {
+        popped = true;
+        return true;
+      }
+      return route.isFirst;
+    });
+
+    if (!popped) {
+      // Haddii aan la helin, u guuri LessonListScreen oo cusub
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
+          settings: const RouteSettings(name: '/lesson_list'),
           builder: (_) =>
               LessonListScreen(subjectName: subjectName, className: className),
         ),
       );
-    } else if (isChapterQuiz) {
-      // Chapter-kii ugu dambeeyay markuu dhamaado: ku celi dashboard.
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    } else {
-      Navigator.of(
-        context,
-      ).popUntil((route) => route.isFirst || route.settings.name == '/home');
     }
   }
 

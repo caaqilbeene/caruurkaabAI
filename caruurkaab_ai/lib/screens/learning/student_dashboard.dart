@@ -1720,6 +1720,7 @@ class ClassSubjectsScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: '/lesson_list'),
                           builder: (_) => LessonListScreen(
                             className: className,
                             subjectName: entry.value,
