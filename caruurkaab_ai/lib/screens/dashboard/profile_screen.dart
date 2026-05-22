@@ -617,7 +617,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: TextField(
                       controller: nameController,
                       textCapitalization: TextCapitalization.words,
-                      inputFormatters: const [CapitalizeFirstLetterFormatter()],
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.symmetric(horizontal: 16),

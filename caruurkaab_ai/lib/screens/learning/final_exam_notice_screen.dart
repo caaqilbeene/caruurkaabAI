@@ -364,7 +364,7 @@ class _FinalExamNoticeScreenState extends State<FinalExamNoticeScreen> {
                     Expanded(
                       child: Text(
                         _scoreData!.isPassed
-                            ? 'Waan kuugu Hambalyeynaynaa!'
+                            ? 'Waan kuugu Hambalyeynaayaa!'
                             : 'Natiijo Hoosaysa',
                         style: TextStyle(
                           color: _scoreData!.isPassed

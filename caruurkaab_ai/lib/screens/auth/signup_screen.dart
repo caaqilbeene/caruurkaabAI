@@ -694,9 +694,6 @@ class _SignupScreenState extends State<SignupScreen> {
                         TextFormField(
                           controller: fullNameController,
                           textCapitalization: TextCapitalization.words,
-                          inputFormatters: const [
-                            CapitalizeFirstLetterFormatter(),
-                          ],
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Magaca waa qasab";

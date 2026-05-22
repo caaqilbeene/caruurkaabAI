@@ -1,21 +1,12 @@
 import 'package:flutter/services.dart';
 
-String _capitalizeFirstNonSpace(String value) {
-  if (value.isEmpty) return value;
-  for (var i = 0; i < value.length; i++) {
-    final char = value[i];
-    if (char.trim().isEmpty) continue;
-    final upper = char.toUpperCase();
-    if (upper == char) return value;
-    return '${value.substring(0, i)}$upper${value.substring(i + 1)}';
-  }
-  return value;
-}
-
 String normalizeUserDisplayName(String input) {
   final compact = input.replaceAll(RegExp(r'\s+'), ' ').trim();
   if (compact.isEmpty) return '';
-  return _capitalizeFirstNonSpace(compact);
+  return compact.split(' ').map((word) {
+    if (word.isEmpty) return '';
+    return word[0].toUpperCase() + word.substring(1);
+  }).join(' ');
 }
 
 class CapitalizeFirstLetterFormatter extends TextInputFormatter {
@@ -26,12 +17,10 @@ class CapitalizeFirstLetterFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final capitalized = _capitalizeFirstNonSpace(newValue.text);
-    if (capitalized == newValue.text) return newValue;
-    return newValue.copyWith(
-      text: capitalized,
-      selection: newValue.selection,
-      composing: TextRange.empty,
-    );
+    // Return newValue directly to prevent keyboard composing region conflicts.
+    // The native textCapitalization: TextCapitalization.words handles on-type capitalization,
+    // and normalizeUserDisplayName handles normalization on submission.
+    return newValue;
   }
 }
+
