@@ -12,6 +12,7 @@ class AdminQuizManagementScreen extends StatefulWidget {
 }
 
 class _AdminQuizManagementScreenState extends State<AdminQuizManagementScreen> {
+  static const String _quizMediaBucket = 'lesson-media';
   Future<List<Map<String, dynamic>>> _futureQuizzes = Future.value([]);
 
   @override
@@ -20,11 +21,95 @@ class _AdminQuizManagementScreenState extends State<AdminQuizManagementScreen> {
     _futureQuizzes = _fetchQuizzes();
   }
 
-  Future<List<Map<String, dynamic>>> _fetchQuizzes() {
-    return Supabase.instance.client
+  Future<List<Map<String, dynamic>>> _fetchQuizzes() async {
+    final quizzes = await Supabase.instance.client
         .from('quizzes')
         .select()
         .order('created_at', ascending: false);
+        
+    try {
+      final chapters = await Supabase.instance.client.from('chapters').select('id, title');
+      final chapterMap = {
+        for (final c in chapters) c['id'].toString(): c['title']?.toString() ?? 'Cutub'
+      };
+      
+      for (var q in quizzes) {
+        final chId = q['chapter_id']?.toString();
+        if (chId != null && chapterMap.containsKey(chId)) {
+          q['chapter_title'] = chapterMap[chId];
+        } else {
+          q['chapter_title'] = 'Cutubka $chId';
+        }
+      }
+    } catch (_) {
+      // If fetching chapters fails, fallback to ID
+      for (var q in quizzes) {
+        q['chapter_title'] = 'Cutubka ${q['chapter_id'] ?? '?'}';
+      }
+    }
+    
+    return quizzes;
+  }
+
+  Set<String> _extractQuizImagePaths(Map<String, dynamic> quiz) {
+    final paths = <String>{};
+    final questions = quiz['questions'];
+    if (questions is! List) return paths;
+
+    for (final raw in questions) {
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      final imageUrl = map['imageUrl']?.toString().trim() ?? '';
+      if (imageUrl.isEmpty) continue;
+      final path = _extractStoragePathFromPublicUrl(imageUrl);
+      if (path != null && path.isNotEmpty) {
+        paths.add(path);
+      }
+    }
+    return paths;
+  }
+
+  String? _extractStoragePathFromPublicUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      final publicIndex = segments.indexOf('public');
+      if (publicIndex >= 0 &&
+          publicIndex + 1 < segments.length &&
+          segments[publicIndex + 1] == _quizMediaBucket) {
+        final rawPath = segments.skip(publicIndex + 2).join('/');
+        if (rawPath.trim().isEmpty) return null;
+        return Uri.decodeComponent(rawPath);
+      }
+
+      final marker = '/$_quizMediaBucket/';
+      final idx = uri.path.indexOf(marker);
+      if (idx >= 0) {
+        final rawPath = uri.path.substring(idx + marker.length);
+        if (rawPath.trim().isEmpty) return null;
+        return Uri.decodeComponent(rawPath);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<void> _deleteQuizAndImages(Map<String, dynamic> quiz) async {
+    final imagePaths = _extractQuizImagePaths(quiz).toList();
+    await Supabase.instance.client
+        .from('quizzes')
+        .delete()
+        .eq('id', quiz['id']);
+
+    if (imagePaths.isEmpty) return;
+    try {
+      await Supabase.instance.client.storage
+          .from(_quizMediaBucket)
+          .remove(imagePaths);
+    } catch (_) {
+      // Quiz row already deleted; ignore storage cleanup failure.
+    }
   }
 
   @override
@@ -127,7 +212,7 @@ class _AdminQuizManagementScreenState extends State<AdminQuizManagementScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "$subject • $totalQs Su'aalo • $durationM daqiiqo",
+                            "Fasalka ${quiz['class_level'] ?? '?'} • ${quiz['chapter_title'] ?? '?'} • $subject • $totalQs Su'aalo • $durationM daqiiqo",
                             style: const TextStyle(
                               color: Color(0xFF6B7280),
                               fontSize: 12,
@@ -197,10 +282,7 @@ class _AdminQuizManagementScreenState extends State<AdminQuizManagementScreen> {
                                   );
                                   if (ok != true) return;
                                   try {
-                                    await Supabase.instance.client
-                                        .from('quizzes')
-                                        .delete()
-                                        .eq('id', quiz['id']);
+                                    await _deleteQuizAndImages(quiz);
                                     if (!context.mounted) return;
                                     setState(() {
                                       _futureQuizzes = _fetchQuizzes();

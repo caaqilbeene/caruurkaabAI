@@ -20,24 +20,15 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
   // CHANGED: Controllers for basic quiz info.
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  final TextEditingController _durationController = TextEditingController();
-  final TextEditingController _totalQuestionsController = TextEditingController(
-    text: '10',
-  );
   final TextEditingController _passingScoreController = TextEditingController(
     text: '50',
   );
-  final TextEditingController _defaultQuestionSecondsController =
-      TextEditingController(text: '10');
 
   String? _subject;
   int? _classLevel;
   List<Map<String, dynamic>> _chapters = [];
   String? _selectedChapterId;
   bool _isLoadingChapters = false;
-  List<Map<String, dynamic>> _lessons = [];
-  String? _selectedLessonId;
-  bool _isLoadingLessons = false;
 
   // CHANGED: Local question items (future Firestore).
   final List<_QuizQuestionEntry> _questions = [_QuizQuestionEntry()];
@@ -117,15 +108,8 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
 
     _titleController.text = (quiz['title'] ?? '').toString();
     _descController.text = (quiz['desc'] ?? '').toString();
-    _durationController.text = (quiz['duration_minutes'] ?? '').toString();
-    _totalQuestionsController.text =
-        (quiz['total_questions'] ?? _totalQuestionsController.text).toString();
     _passingScoreController.text =
         (quiz['passing_score'] ?? _passingScoreController.text).toString();
-    _defaultQuestionSecondsController.text =
-        (quiz['default_question_seconds'] ??
-                _defaultQuestionSecondsController.text)
-            .toString();
 
     final rawSubject = (quiz['subject_name'] ?? '').toString();
     if (rawSubject.isNotEmpty) _subject = rawSubject;
@@ -137,8 +121,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
     if (parsedClass != null) _classLevel = parsedClass;
 
     _selectedChapterId = quiz['chapter_id']?.toString();
-    _selectedLessonId = quiz['lesson_id']?.toString();
-
     _questions.clear();
     final qList = quiz['questions'];
     if (qList is List && qList.isNotEmpty) {
@@ -147,7 +129,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
         final entry = _QuizQuestionEntry();
         entry.questionController.text = (raw['question'] ?? '').toString();
         entry.imageUrlController.text = (raw['imageUrl'] ?? '').toString();
-        entry.pointsController.text = (raw['points'] ?? '').toString().trim();
         final options = raw['options'];
         if (options is List && options.length >= 3) {
           entry.option1Controller.text = (options[0] ?? '').toString();
@@ -173,11 +154,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
     setState(() {
       _isLoadingChapters = true;
       _chapters = [];
-      _lessons = [];
-      _isLoadingLessons = false;
-      if (!_isEdit) {
-        _selectedLessonId = null;
-      }
       if (!_isEdit) {
         _selectedChapterId = null;
       }
@@ -189,9 +165,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
         if (mounted) {
           setState(() {
             _isLoadingChapters = false;
-            _lessons = [];
-            _selectedLessonId = null;
-            _isLoadingLessons = false;
           });
         }
         return;
@@ -214,11 +187,9 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
           _chapters = List<Map<String, dynamic>>.from(data);
           if (!chapterStillExists) {
             _selectedChapterId = null;
-            _selectedLessonId = null;
           }
         });
       }
-      await _fetchLessons();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -232,73 +203,11 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
     }
   }
 
-  Future<void> _fetchLessons() async {
-    setState(() {
-      _isLoadingLessons = true;
-      _lessons = [];
-    });
-    try {
-      final subject = _subject;
-      final level = _classLevel;
-      final chapterId = _selectedChapterId;
-      if (subject == null ||
-          level == null ||
-          chapterId == null ||
-          chapterId.trim().isEmpty) {
-        if (mounted) {
-          setState(() {
-            _selectedLessonId = null;
-            _isLoadingLessons = false;
-          });
-        }
-        return;
-      }
-
-      final chapterValue = int.tryParse(chapterId) ?? chapterId;
-      final data = await Supabase.instance.client
-          .from('lessons')
-          .select('id,title,chapter_id,subject_name,class_level,created_at')
-          .eq('subject_name', subject)
-          .eq('class_level', level)
-          .eq('chapter_id', chapterValue)
-          .order('created_at', ascending: true);
-
-      if (mounted) {
-        var lessonStillExists = false;
-        if (_selectedLessonId != null && _selectedLessonId!.isNotEmpty) {
-          lessonStillExists = data.any(
-            (row) => row['id']?.toString() == _selectedLessonId,
-          );
-        }
-        setState(() {
-          _lessons = List<Map<String, dynamic>>.from(data);
-          if (!lessonStillExists) {
-            _selectedLessonId = null;
-          }
-          _isLoadingLessons = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _lessons = [];
-          _isLoadingLessons = false;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Fetch lessons failed: $e')));
-      }
-    }
-  }
-
   @override
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
-    _durationController.dispose();
-    _totalQuestionsController.dispose();
     _passingScoreController.dispose();
-    _defaultQuestionSecondsController.dispose();
     for (final q in _questions) {
       q.dispose();
     }
@@ -312,9 +221,7 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
       );
       return;
     }
-    final entry = _QuizQuestionEntry();
-    entry.pointsController.text = '10';
-    setState(() => _questions.add(entry));
+    setState(() => _questions.add(_QuizQuestionEntry()));
   }
 
   void _removeQuestion(int index) {
@@ -425,8 +332,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
               setState(() {
                 _subject = value;
                 _selectedChapterId = null;
-                _selectedLessonId = null;
-                _lessons = [];
               });
               _fetchChapters();
             },
@@ -472,8 +377,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
               setState(() {
                 _classLevel = value;
                 _selectedChapterId = null;
-                _selectedLessonId = null;
-                _lessons = [];
               });
               _fetchChapters();
             },
@@ -513,10 +416,7 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                 : (value) {
                     setState(() {
                       _selectedChapterId = value;
-                      _selectedLessonId = null;
-                      _lessons = [];
                     });
-                    _fetchLessons();
                   },
           ),
           if (!_isLoadingChapters && _chapters.isEmpty)
@@ -527,111 +427,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                 style: TextStyle(color: Color(0xFF9CA3AF)),
               ),
             ),
-          const SizedBox(height: 12),
-          const Text(
-            'Lesson (Casharka)',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            key: ValueKey(
-              'lesson_${_selectedChapterId ?? ''}_${_selectedLessonId ?? ''}',
-            ),
-            initialValue:
-                _lessons.any((l) => l['id']?.toString() == _selectedLessonId)
-                ? _selectedLessonId
-                : null,
-            isExpanded: true,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            hint: Text(
-              _selectedChapterId == null || _selectedChapterId!.isEmpty
-                  ? 'Marka hore dooro cutubka'
-                  : (_isLoadingLessons ? 'Sug...' : 'Dooro casharka'),
-            ),
-            items: _lessons
-                .map(
-                  (lesson) => DropdownMenuItem<String>(
-                    value: lesson['id'].toString(),
-                    child: Text(
-                      lesson['title']?.toString() ?? 'Cashar',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged:
-                _isLoadingLessons ||
-                    _selectedChapterId == null ||
-                    _selectedChapterId!.isEmpty
-                ? null
-                : (value) {
-                    setState(() => _selectedLessonId = value);
-                  },
-          ),
-          if (_selectedChapterId != null &&
-              _selectedChapterId!.isNotEmpty &&
-              !_isLoadingLessons &&
-              _lessons.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                'Ma jiraan casharro cutubkan ku jira.',
-                style: TextStyle(color: Color(0xFF9CA3AF)),
-              ),
-            ),
-          const SizedBox(height: 12),
-          const Text(
-            'Duration (minutes)',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _durationController,
-            keyboardType: TextInputType.number,
-            autocorrect: false,
-            enableSuggestions: false,
-            smartDashesType: SmartDashesType.disabled,
-            smartQuotesType: SmartQuotesType.disabled,
-            decoration: InputDecoration(
-              hintText: 'e.g. 10',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Total Questions',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _totalQuestionsController,
-            keyboardType: TextInputType.number,
-            autocorrect: false,
-            enableSuggestions: false,
-            smartDashesType: SmartDashesType.disabled,
-            smartQuotesType: SmartQuotesType.disabled,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           const Text(
             'Passing Score (%)',
             style: TextStyle(fontWeight: FontWeight.w700),
@@ -645,29 +440,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
             smartDashesType: SmartDashesType.disabled,
             smartQuotesType: SmartQuotesType.disabled,
             decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Question Timer (seconds)',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _defaultQuestionSecondsController,
-            keyboardType: TextInputType.number,
-            autocorrect: false,
-            enableSuggestions: false,
-            smartDashesType: SmartDashesType.disabled,
-            smartQuotesType: SmartQuotesType.disabled,
-            decoration: InputDecoration(
-              hintText: '10',
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -722,24 +494,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                       smartQuotesType: SmartQuotesType.disabled,
                       decoration: InputDecoration(
                         hintText: 'Gali su’aasha...',
-                        filled: true,
-                        fillColor: const Color(0xFFF9FAFB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: q.pointsController,
-                      keyboardType: TextInputType.number,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      smartDashesType: SmartDashesType.disabled,
-                      smartQuotesType: SmartQuotesType.disabled,
-                      decoration: InputDecoration(
-                        hintText: 'Points (e.g. 10)',
                         filled: true,
                         fillColor: const Color(0xFFF9FAFB),
                         border: OutlineInputBorder(
@@ -871,12 +625,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                   );
                   return;
                 }
-                if (_selectedLessonId == null || _selectedLessonId!.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Fadlan dooro casharka.')),
-                  );
-                  return;
-                }
                 final questions = <Map<String, dynamic>>[];
                 for (final q in _questions) {
                   final question = q.questionController.text.trim();
@@ -886,9 +634,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                     q.option3Controller.text.trim(),
                   ];
                   final correctText = q.correctAnswerController.text.trim();
-                  final points =
-                      int.tryParse(q.pointsController.text.trim()) ??
-                      _defaultPoints();
                   final correctIndex = q.resolveCorrectIndex(
                     correctText,
                     options,
@@ -920,24 +665,8 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                     'imageUrl': q.imageUrlController.text.trim(),
                     'options': options,
                     'correctIndex': correctIndex,
-                    'points': points <= 0 ? _defaultPoints() : points,
+                    'points': _defaultPoints(),
                   });
-                }
-
-                final questionSeconds =
-                    int.tryParse(
-                      _defaultQuestionSecondsController.text.trim(),
-                    ) ??
-                    10;
-                if (questionSeconds < 5 || questionSeconds > 120) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Question timer waa inuu ahaadaa 5 ilaa 120 sec.',
-                      ),
-                    ),
-                  );
-                  return;
                 }
 
                 final payload = {
@@ -947,16 +676,12 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                   'class_level': _classLevel,
                   'chapter_id':
                       int.tryParse(_selectedChapterId!) ?? _selectedChapterId,
-                  'lesson_id':
-                      int.tryParse(_selectedLessonId!) ?? _selectedLessonId,
-                  'duration_minutes':
-                      int.tryParse(_durationController.text.trim()) ?? 0,
-                  'total_questions':
-                      int.tryParse(_totalQuestionsController.text.trim()) ??
-                      _questions.length,
+                  'lesson_id': null,
+                  'duration_minutes': 0,
+                  'total_questions': _questions.length,
                   'passing_score':
                       int.tryParse(_passingScoreController.text.trim()) ?? 0,
-                  'default_question_seconds': questionSeconds,
+                  'default_question_seconds': 45,
                   'questions': questions,
                 };
 
@@ -1056,9 +781,6 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
 class _QuizQuestionEntry {
   final TextEditingController questionController = TextEditingController();
   final TextEditingController imageUrlController = TextEditingController();
-  final TextEditingController pointsController = TextEditingController(
-    text: '10',
-  );
   final TextEditingController option1Controller = TextEditingController();
   final TextEditingController option2Controller = TextEditingController();
   final TextEditingController option3Controller = TextEditingController();
@@ -1098,7 +820,6 @@ class _QuizQuestionEntry {
   void dispose() {
     questionController.dispose();
     imageUrlController.dispose();
-    pointsController.dispose();
     option1Controller.dispose();
     option2Controller.dispose();
     option3Controller.dispose();

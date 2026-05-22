@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/student_profile_service.dart';
@@ -7,11 +8,13 @@ import 'lesson_viewer_screen.dart';
 class LessonListScreen extends StatefulWidget {
   final String className;
   final String subjectName;
+  final bool autoReturnToSubjectsIfAllDone;
 
   const LessonListScreen({
     super.key,
     required this.className,
     required this.subjectName,
+    this.autoReturnToSubjectsIfAllDone = false,
   });
 
   @override
@@ -19,6 +22,8 @@ class LessonListScreen extends StatefulWidget {
 }
 
 class _LessonListScreenState extends State<LessonListScreen> {
+  static const String _chapterQuizPassPrefix = 'chapter_pass:';
+
   bool _isLoading = true;
   List<Map<String, dynamic>> _chapters = [];
   Map<String, List<Map<String, dynamic>>> _lessonsByChapter = {};
@@ -27,6 +32,8 @@ class _LessonListScreenState extends State<LessonListScreen> {
   Map<String, String> _statusByLessonId = {};
   Map<String, bool> _chapterUnlockedById = {};
   Set<String> _completedLessonIds = {};
+  Set<String> _passedChapterQuizIds = {};
+  bool _didAutoReturn = false;
 
   @override
   void initState() {
@@ -93,6 +100,37 @@ class _LessonListScreenState extends State<LessonListScreen> {
         for (final row in progressData)
           if (row['completed'] == true) row['lesson_id'].toString(),
       };
+
+      _passedChapterQuizIds = {};
+      if (userKeys.isNotEmpty) {
+        try {
+          final chapterPassRows = await Supabase.instance.client
+              .from('student_quiz_progress')
+              .select('lesson_id')
+              .inFilter('user_id', userKeys)
+              .like('lesson_id', '$_chapterQuizPassPrefix%');
+          for (final row in chapterPassRows) {
+            final key = row['lesson_id']?.toString() ?? '';
+            if (!key.startsWith(_chapterQuizPassPrefix)) continue;
+            final chapterId = key
+                .substring(_chapterQuizPassPrefix.length)
+                .trim();
+            if (chapterId.isNotEmpty) {
+              _passedChapterQuizIds.add(chapterId);
+            }
+          }
+        } catch (e) {
+          debugPrint('Chapter quiz progress fetch skipped: $e');
+        }
+      }
+
+      await _mergeLocalChapterQuizPasses(
+        chapters: chapters,
+        classLevel: classLevel,
+        subjectName: subjectName,
+        userKeys: userKeys,
+      );
+
       _statusByLessonId = {};
 
       final Map<String, List<Map<String, dynamic>>> grouped = {};
@@ -140,12 +178,91 @@ class _LessonListScreenState extends State<LessonListScreen> {
           _nextLessonById = nextMap;
           _isLoading = false;
         });
+        _maybeAutoReturnToSubjects();
       }
     } catch (e) {
       debugPrint("Error fetching learning data: \$e");
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  bool _allChapterLessonsAndQuizzesCompleted() {
+    if (_chapters.isEmpty) return false;
+    for (final chapter in _chapters) {
+      final chapterId = chapter['id']?.toString().trim() ?? '';
+      if (chapterId.isEmpty) continue;
+      if (!_passedChapterQuizIds.contains(chapterId)) return false;
+      final lessons = _lessonsByChapter[chapterId] ?? const [];
+      for (final lesson in lessons) {
+        final lessonId = lesson['id']?.toString() ?? '';
+        if (lessonId.isEmpty) continue;
+        if (_statusByLessonId[lessonId] != 'completed') return false;
+      }
+    }
+    return true;
+  }
+
+  void _maybeAutoReturnToSubjects() {
+    if (!widget.autoReturnToSubjectsIfAllDone) return;
+    if (_didAutoReturn) return;
+    if (!_allChapterLessonsAndQuizzesCompleted()) return;
+    _didAutoReturn = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    });
+  }
+
+  String _localChapterPassKey({
+    required String userId,
+    required int classLevel,
+    required String subjectName,
+    required String chapterId,
+  }) {
+    final subject = _normalizeSubject(subjectName).trim().toLowerCase();
+    return 'chapter_quiz_pass:$userId:$classLevel:$subject:$chapterId';
+  }
+
+  Future<void> _mergeLocalChapterQuizPasses({
+    required List<Map<String, dynamic>> chapters,
+    required int classLevel,
+    required String subjectName,
+    required List<String> userKeys,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keysToCheck = <String>{...userKeys};
+      final firstKey = StudentProfileService.currentUserKey();
+      if (firstKey != null && firstKey.isNotEmpty) {
+        keysToCheck.add(firstKey);
+      }
+      if (keysToCheck.isEmpty) return;
+
+      for (final chapter in chapters) {
+        final chapterId = chapter['id']?.toString().trim() ?? '';
+        if (chapterId.isEmpty) continue;
+
+        var passed = false;
+        for (final userId in keysToCheck) {
+          final localKey = _localChapterPassKey(
+            userId: userId,
+            classLevel: classLevel,
+            subjectName: subjectName,
+            chapterId: chapterId,
+          );
+          if (prefs.getBool(localKey) == true) {
+            passed = true;
+            break;
+          }
+        }
+        if (passed) {
+          _passedChapterQuizIds.add(chapterId);
+        }
+      }
+    } catch (e) {
+      debugPrint('Local chapter pass load skipped: $e');
     }
   }
 
@@ -189,7 +306,8 @@ class _LessonListScreenState extends State<LessonListScreen> {
       final chapterId = chapter['id']?.toString() ?? '';
       if (chapterId.isEmpty) continue;
 
-      final chapterLessons = grouped[chapterId] ?? const <Map<String, dynamic>>[];
+      final chapterLessons =
+          grouped[chapterId] ?? const <Map<String, dynamic>>[];
       final chapterUnlocked = previousChapterCompleted;
       _chapterUnlockedById[chapterId] = chapterUnlocked;
 
@@ -224,7 +342,8 @@ class _LessonListScreenState extends State<LessonListScreen> {
         }
       }
 
-      previousChapterCompleted = chapterAllCompleted;
+      final chapterQuizPassed = _passedChapterQuizIds.contains(chapterId);
+      previousChapterCompleted = chapterAllCompleted && chapterQuizPassed;
     }
 
     // Loose lessons: only after all chapters are completed.
@@ -399,7 +518,7 @@ class _LessonListScreenState extends State<LessonListScreen> {
                           const Padding(
                             padding: EdgeInsets.only(bottom: 10),
                             child: Text(
-                              'Marka hore dhammee casharrada iyo quiz-ka cutubka hore.',
+                              'Marka hore dhammee casharrada iyo leyli-ga cutubka hore.',
                               style: TextStyle(
                                 color: Color(0xFF9CA3AF),
                                 fontSize: 12,

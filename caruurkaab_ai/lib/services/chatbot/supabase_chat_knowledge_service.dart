@@ -239,6 +239,64 @@ class SupabaseChatKnowledgeService {
     });
 
     await safeRun(() async {
+      final rows = await db
+          .from('exams')
+          .select(
+            'id,title,subject_name,class_level,questions',
+          );
+
+      for (final row in rows) {
+        final map = Map<String, dynamic>.from(row);
+        final title = (map['title'] ?? 'Exam').toString().trim();
+        final subject = (map['subject_name'] ?? '').toString().trim();
+        final classLevel = (map['class_level'] ?? '').toString().trim();
+        final questions = map['questions'];
+
+        if (questions is! List) continue;
+
+        for (final raw in questions) {
+          if (raw is! Map) continue;
+          final q = Map<String, dynamic>.from(raw);
+          final qText = (q['question'] ?? q['text'] ?? '').toString().trim();
+          if (qText.isEmpty) continue;
+
+          final options = q['options'];
+          final answer = _extractQuizAnswer(q);
+
+          final parts = <String>["Su'aal: $qText"];
+          if (options is List && options.isNotEmpty) {
+            parts.add(
+              "Options: ${options.map((e) => e.toString()).join(', ')}",
+            );
+          }
+          if (answer != null && answer.trim().isNotEmpty) {
+            parts.add("Jawaab: ${answer.trim()}");
+            qaItems.add(
+              ChatQaItem(
+                question: qText,
+                answer: answer.trim(),
+                source: 'exam',
+                title: title,
+                subject: subject,
+                classLevel: classLevel,
+              ),
+            );
+          }
+
+          chunks.add(
+            ChatKnowledgeChunk(
+              source: 'exam',
+              title: title,
+              subject: subject,
+              classLevel: classLevel,
+              body: parts.join('\n'),
+            ),
+          );
+        }
+      }
+    });
+
+    await safeRun(() async {
       final rows = await db.from('questions').select();
       for (final row in rows) {
         final map = Map<String, dynamic>.from(row);

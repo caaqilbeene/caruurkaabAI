@@ -23,7 +23,7 @@ class ChatController {
       // 1) SUPABASE FIRST
       final supabaseAnswer = await supabaseService.querySupabaseAnswer(input);
       if (supabaseAnswer != null && supabaseAnswer.isNotEmpty) {
-        return supabaseAnswer;
+        return "Jawaabta su'aasha waa: $supabaseAnswer 😊";
       }
       return noAnswerFallback;
     } catch (e) {

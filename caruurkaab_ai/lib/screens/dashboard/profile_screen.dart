@@ -10,6 +10,7 @@ import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
 import '../../utils/name_input_formatter.dart';
 import '../auth/login_signup.dart';
+import 'student_report_card_dialog.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isEmbedded;
@@ -389,6 +390,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
             const SizedBox(height: 32),
 
+            // Report Card Button
+            Container(
+              width: double.infinity,
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                ),
+              ),
+              child: ElevatedButton(
+                onPressed: _showReportCardPrompt,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.assignment, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      'Arag Shahaadada (Report Card)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Logout Button
             Container(
               width: double.infinity,
@@ -749,6 +788,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _showReportCardPrompt() {
+    if (_studentProfile == null) return;
+    final idController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Xaqiijinta Ardayga',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Fadlan geli Student ID Lambar si aad u aragto Shahaadada.',
+                  style: TextStyle(color: Color(0xFF64748B), height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: idController,
+                  decoration: InputDecoration(
+                    hintText: 'Student ID Lambar...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Jooji', style: TextStyle(color: Color(0xFF64748B))),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final entered = idController.text.trim().toUpperCase();
+                          final enteredDigits = entered.replaceAll(RegExp(r'[^0-9]'), '');
+                          final correctDigits = _studentProfile!.studentId.replaceAll(RegExp(r'[^0-9]'), '');
+                          
+                          if (entered == _studentProfile!.studentId || 
+                             (enteredDigits.isNotEmpty && enteredDigits == correctDigits) ||
+                             enteredDigits == int.parse(correctDigits).toString()) {
+                            Navigator.pop(ctx);
+                            StudentReportCardDialog.show(
+                              context,
+                              _studentProfile!,
+                              StudentClassService.extractClassLevel(_assignedClass),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('ID-ga aad gelisay waa khalad. Isku day mar kale.'),
+                                backgroundColor: Color(0xFFEF4444),
+                              )
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1D5AFF),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Arag', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+        );
+      }
     );
   }
 }

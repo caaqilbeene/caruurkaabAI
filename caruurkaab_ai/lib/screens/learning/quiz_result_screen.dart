@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/final_exam_service.dart';
+import 'final_exam_notice_screen.dart';
 import 'quiz_question_screen.dart';
 import 'lesson_list_screen.dart';
 
@@ -10,6 +12,7 @@ class QuizResultScreen extends StatelessWidget {
   final int earnedPoints;
   final List<String> badges;
   final bool dailyRewardUnlocked;
+  final List<Map<String, String>> mistakes;
   final String lessonTitle;
   final String subjectName;
   final int classLevel;
@@ -27,6 +30,7 @@ class QuizResultScreen extends StatelessWidget {
     required this.earnedPoints,
     required this.badges,
     required this.dailyRewardUnlocked,
+    this.mistakes = const [],
     required this.lessonTitle,
     required this.subjectName,
     required this.classLevel,
@@ -36,6 +40,117 @@ class QuizResultScreen extends StatelessWidget {
     this.nextLessonTitle,
     this.nextLessonChapterId,
   });
+
+  Future<FinalExamRecord?> _resolveReadyClassFinal() async {
+    final chapter = chapterId?.trim() ?? '';
+    final isChapterQuiz = chapter.isNotEmpty && lessonId.trim().isEmpty;
+    if (!isChapterQuiz) return null;
+
+    final exam = await FinalExamService.fetchClassFinalExam(
+      subject: subjectName,
+      classLevel: classLevel,
+    );
+    if (exam == null || !exam.isActive) return null;
+
+    final eligible = await FinalExamService.isEligibleForClassFinal(
+      subject: subjectName,
+      classLevel: classLevel,
+    );
+    if (!eligible) return null;
+
+    return exam;
+  }
+
+  Future<void> _openNext(BuildContext context, {required bool isPass}) async {
+    final nextId = nextLessonId?.trim() ?? '';
+    final isChapterQuiz = chapterId != null && lessonId.trim().isEmpty;
+    final className = 'Fasalka $classLevel';
+
+    if (isPass && isChapterQuiz) {
+      BuildContext? dialogContext;
+      try {
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            dialogContext = ctx;
+            return const Center(child: CircularProgressIndicator());
+          },
+        );
+
+        final readyExam = await _resolveReadyClassFinal();
+        if (dialogContext != null && dialogContext!.mounted) {
+          Navigator.of(dialogContext!).pop();
+        }
+
+        if (!context.mounted) return;
+        if (readyExam != null) {
+          final openFinal = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Final Exam waa diyaar'),
+              content: Text(
+                'Waxaad gaartay Final Exam-ka ${readyExam.subjectName} - '
+                'Fasalka ${readyExam.classLevel}.\n\n'
+                'Ma rabtaa hadda inaad gasho?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Dib u eeg casharrada'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D5AFF),
+                  ),
+                  child: const Text(
+                    'Gal Final',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (!context.mounted) return;
+          if (openFinal == true) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => FinalExamNoticeScreen(
+                  initialExam: readyExam,
+                  returnToClassSubjectsOnFinish: true,
+                ),
+              ),
+            );
+            return;
+          }
+        }
+      } catch (_) {
+        if (dialogContext != null && dialogContext!.mounted) {
+          Navigator.of(dialogContext!).pop();
+        }
+      }
+    }
+
+    if (nextId.isNotEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              LessonListScreen(subjectName: subjectName, className: className),
+        ),
+      );
+    } else if (isChapterQuiz) {
+      // Chapter-kii ugu dambeeyay markuu dhamaado: ku celi dashboard.
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else {
+      Navigator.of(
+        context,
+      ).popUntil((route) => route.isFirst || route.settings.name == '/home');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,18 +164,17 @@ class QuizResultScreen extends StatelessWidget {
         ? "Waa Gudubtay (Pass) ✅"
         : "Hadhacday (Fail) ❌";
     final IconData statusIcon = isPass ? Icons.emoji_events : Icons.mood_bad;
-    final className = 'Fasalka $classLevel';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(),
+              const SizedBox(height: 20),
 
               // Status Icon
               Container(
@@ -253,7 +367,7 @@ class QuizResultScreen extends StatelessWidget {
                 ),
               ],
 
-              const Spacer(),
+              const SizedBox(height: 30),
 
               // Action Buttons
               if (!isPass)
@@ -301,25 +415,7 @@ class QuizResultScreen extends StatelessWidget {
               const SizedBox(height: 15),
 
               InkWell(
-                onTap: () {
-                  final nextId = nextLessonId?.trim() ?? '';
-                  if (nextId.isNotEmpty) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => LessonListScreen(
-                          subjectName: subjectName,
-                          className: className,
-                        ),
-                      ),
-                    );
-                  } else {
-                    Navigator.of(context).popUntil(
-                      (route) =>
-                          route.isFirst || route.settings.name == '/home',
-                    );
-                  }
-                },
+                onTap: () => _openNext(context, isPass: isPass),
                 borderRadius: BorderRadius.circular(30),
                 child: Container(
                   width: double.infinity,
@@ -347,6 +443,61 @@ class QuizResultScreen extends StatelessWidget {
                   ),
                 ),
               ),
+
+              if (mistakes.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const Text(
+                  "Khaladaadkaagii (Your Mistakes):",
+                  style: TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...mistakes.map((m) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m['question'] ?? '',
+                          style: const TextStyle(
+                            color: Color(0xFF111827),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Adiga: ${m['your_answer']}",
+                          style: const TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Saxda: ${m['correct_answer']}",
+                          style: const TextStyle(
+                            color: Color(0xFF10B981),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
 
               const SizedBox(height: 10),
             ],

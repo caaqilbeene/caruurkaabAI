@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/student_profile_service.dart';
 import 'quiz_intro_screen.dart';
 
 class LessonViewerScreen extends StatefulWidget {
@@ -100,10 +101,9 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
             content: desc.isEmpty
                 ? 'Casharkan wali xog badan laguma darin.'
                 : desc,
-            imageUrls:
-                (data?['image_url']?.toString().trim().isEmpty ?? true)
-                    ? const []
-                    : [data?['image_url']?.toString().trim() ?? ''],
+            imageUrls: (data?['image_url']?.toString().trim().isEmpty ?? true)
+                ? const []
+                : [data?['image_url']?.toString().trim() ?? ''],
           ),
         );
       }
@@ -141,23 +141,152 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
         curve: Curves.easeIn,
       );
     } else {
-      // Last page -> Go to Quiz Intro
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => QuizIntroScreen(
-            lessonTitle: widget.lessonTitle,
-            subjectName: widget.subjectName,
-            classLevel: widget.classLevel,
-            chapterId: widget.chapterId,
-            lessonId: widget.lessonId,
-            nextLessonId: widget.nextLessonId,
-            nextLessonTitle: widget.nextLessonTitle,
-            nextLessonChapterId: widget.nextLessonChapterId,
-          ),
-        ),
-      );
+      _completeAndContinue();
     }
+  }
+
+
+
+  Future<void> _completeAndContinue() async {
+    await _markLessonComplete();
+    if (!mounted) return;
+
+    final currentChapterId = (widget.chapterId ?? '').trim();
+    final nextLessonId = (widget.nextLessonId ?? '').trim();
+    final nextChapterId = (widget.nextLessonChapterId ?? '').trim();
+
+    final hasNextLesson = nextLessonId.isNotEmpty;
+    final isSameChapterNext =
+        hasNextLesson &&
+        currentChapterId.isNotEmpty &&
+        nextChapterId.isNotEmpty &&
+        nextChapterId == currentChapterId;
+
+    if (isSameChapterNext) {
+      await _openNextLessonInChapter(nextLessonId);
+      return;
+    }
+
+    if (currentChapterId.isNotEmpty) {
+      _openChapterQuiz();
+      return;
+    }
+
+    if (hasNextLesson) {
+      await _openNextLessonWithoutChapter(nextLessonId);
+      return;
+    }
+
+    Navigator.pop(context);
+  }
+
+  String _resolveUserId() {
+    final key = StudentProfileService.currentUserKey();
+    if (key != null && key.isNotEmpty) return key;
+    return 'guest';
+  }
+
+  Future<void> _markLessonComplete() async {
+    try {
+      final lessonId = widget.lessonId.trim();
+      if (lessonId.isEmpty) return;
+      await Supabase.instance.client.from('lesson_progress').upsert({
+        'user_id': _resolveUserId(),
+        'lesson_id': int.tryParse(lessonId) ?? lessonId,
+        'completed': true,
+        'completed_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id,lesson_id');
+    } catch (_) {
+      // Keep flow smooth even if progress write fails.
+    }
+  }
+
+  Future<Map<String, dynamic>?> _fetchNextLessonInChapter(
+    String lessonId,
+    String chapterId,
+  ) async {
+    try {
+      final chapterValue = int.tryParse(chapterId) ?? chapterId;
+      final rows = await Supabase.instance.client
+          .from('lessons')
+          .select('id,title,chapter_id,created_at')
+          .eq('chapter_id', chapterValue)
+          .order('created_at', ascending: true);
+      final lessons = rows.map((e) => Map<String, dynamic>.from(e)).toList();
+      final currentIndex = lessons.indexWhere(
+        (row) => row['id']?.toString() == lessonId,
+      );
+      if (currentIndex < 0 || currentIndex + 1 >= lessons.length) {
+        return null;
+      }
+      return lessons[currentIndex + 1];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _openNextLessonInChapter(String lessonId) async {
+    final chapterId = (widget.chapterId ?? '').trim();
+    final nextOfNext = chapterId.isEmpty
+        ? null
+        : await _fetchNextLessonInChapter(lessonId, chapterId);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LessonViewerScreen(
+          lessonTitle: (widget.nextLessonTitle ?? '').trim().isEmpty
+              ? 'Casharka xiga'
+              : widget.nextLessonTitle!,
+          subjectName: widget.subjectName,
+          lessonId: lessonId,
+          classLevel: widget.classLevel,
+          chapterId: chapterId.isEmpty ? null : chapterId,
+          nextLessonId: nextOfNext?['id']?.toString(),
+          nextLessonTitle: nextOfNext?['title']?.toString(),
+          nextLessonChapterId: nextOfNext?['chapter_id']?.toString(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNextLessonWithoutChapter(String lessonId) async {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LessonViewerScreen(
+          lessonTitle: (widget.nextLessonTitle ?? '').trim().isEmpty
+              ? 'Casharka xiga'
+              : widget.nextLessonTitle!,
+          subjectName: widget.subjectName,
+          lessonId: lessonId,
+          classLevel: widget.classLevel,
+          chapterId: widget.nextLessonChapterId,
+          nextLessonId: null,
+          nextLessonTitle: null,
+          nextLessonChapterId: null,
+        ),
+      ),
+    );
+  }
+
+  void _openChapterQuiz() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuizIntroScreen(
+          lessonTitle: widget.lessonTitle,
+          subjectName: widget.subjectName,
+          classLevel: widget.classLevel,
+          chapterId: widget.chapterId,
+          lessonId: '',
+          nextLessonId: widget.nextLessonId,
+          nextLessonTitle: widget.nextLessonTitle,
+          nextLessonChapterId: widget.nextLessonChapterId,
+        ),
+      ),
+    );
   }
 
   void _prevPage() {
@@ -322,9 +451,7 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            _currentPage == _slides.length - 1
-                                ? "U Gudub Quiz"
-                                : "Horay - Next Page",
+                            "Cashirka Xiga",
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
@@ -386,7 +513,9 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
                     );
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Qoraalka waa la koobiyey!')),
+                      const SnackBar(
+                        content: Text('Qoraalka waa la koobiyey!'),
+                      ),
                     );
                   },
                   icon: const Icon(Icons.copy, size: 16),
@@ -442,7 +571,9 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
                           if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Sawirka link-kiisa waa la koobiyey!'),
+                              content: Text(
+                                'Sawirka link-kiisa waa la koobiyey!',
+                              ),
                             ),
                           );
                         },

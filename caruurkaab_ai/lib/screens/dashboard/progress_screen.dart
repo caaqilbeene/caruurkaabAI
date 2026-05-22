@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../services/student_achievement_service.dart';
 import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';

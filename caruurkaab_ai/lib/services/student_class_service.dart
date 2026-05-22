@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'final_exam_service.dart';
 import 'student_profile_service.dart';
 
 class StudentClassService {
@@ -68,43 +69,49 @@ class StudentClassService {
     if (userKeys.isEmpty) return assigned;
 
     final db = Supabase.instance.client;
-    final lessonsRows = await db.from('lessons').select('id, class_level');
+    
+    // Fetch all active final exams
+    final examsRows = await db
+        .from('exams')
+        .select('id, class_level, subject_name')
+        .eq('exam_type', 'final_class')
+        .eq('is_active', true);
 
-    if (lessonsRows.isEmpty) return assigned;
-
-    final progressQuery = db
-        .from('lesson_progress')
-        .select('lesson_id')
-        .eq('completed', true);
-
-    final List<dynamic> completedRows = userKeys.length == 1
-        ? await progressQuery.eq('user_id', userKeys.first)
-        : await progressQuery.inFilter('user_id', userKeys);
-
-    final completedIds = <String>{
-      for (final row in completedRows)
-        if (row['lesson_id'] != null) row['lesson_id'].toString(),
-    };
-
-    final Map<int, int> totalsByClass = <int, int>{};
-    final Map<int, int> completedByClass = <int, int>{};
-
-    for (final row in lessonsRows) {
-      final rawClass = row['class_level'];
-      final rawId = row['id'];
-      final level = int.tryParse(rawClass.toString());
-      if (level == null || level < 1 || level > 4 || rawId == null) continue;
-
-      totalsByClass[level] = (totalsByClass[level] ?? 0) + 1;
-      if (completedIds.contains(rawId.toString())) {
-        completedByClass[level] = (completedByClass[level] ?? 0) + 1;
-      }
-    }
+    if (examsRows.isEmpty) return assigned;
 
     while (currentLevel < 4) {
-      final total = totalsByClass[currentLevel] ?? 0;
-      final completed = completedByClass[currentLevel] ?? 0;
-      if (total > 0 && completed >= total) {
+      final currentLevelExams = examsRows.where((row) {
+        final level = int.tryParse(row['class_level'].toString());
+        return level == currentLevel;
+      }).toList();
+
+      if (currentLevelExams.isEmpty) {
+        break; // No exams defined for this level, cannot promote
+      }
+
+      bool allPassed = true;
+      for (final examRow in currentLevelExams) {
+        final subjectName = examRow['subject_name']?.toString();
+        final examId = examRow['id']?.toString();
+        
+        if (subjectName == null || examId == null) {
+          allPassed = false;
+          break;
+        }
+
+        final scoreData = await FinalExamService.fetchCombinedSubjectScore(
+          subjectName,
+          currentLevel,
+          examId,
+        );
+
+        if (scoreData == null || !scoreData.isPassed) {
+          allPassed = false;
+          break;
+        }
+      }
+
+      if (allPassed) {
         currentLevel += 1;
       } else {
         break;

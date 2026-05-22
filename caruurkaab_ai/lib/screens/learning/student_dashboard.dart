@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caruurkaab_ai/screens/dashboard/profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +10,9 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../chatbot/student_ai_chatbot_screen.dart';
 import '../dashboard/progress_screen.dart';
+import 'final_exam_notice_screen.dart';
 import '../../services/lesson_completion_progress_service.dart';
+import '../../services/final_exam_service.dart';
 import '../../services/profile_avatar_service.dart';
 import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
@@ -211,8 +215,11 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
   int _completedLessons = 0;
   int _totalLessons = 0;
   bool _isLoadingNotifications = false;
+  bool _isCheckingExamSuggestion = false;
   final List<_StudentNotificationItem> _notifications = [];
   int _unreadNotificationCount = 0;
+  String _aiSuggestionText =
+      'Riix halkan si aad u aragto ogeysiiska Final Exam-ka.';
   RealtimeChannel? _notificationsChannel;
   List<String> _subscribedNotificationKeys = const [];
   final Set<String> _seenBroadcastIds = <String>{};
@@ -228,6 +235,7 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     _loadSeenBroadcastIds();
     _subscribeNotifications();
     _loadNotifications();
+    _refreshAiSuggestion();
   }
 
   @override
@@ -239,6 +247,96 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     _loadLearningProgress();
     _subscribeNotifications();
     _loadNotifications();
+  }
+
+  Future<void> _refreshAiSuggestion() async {
+    if (_isCheckingExamSuggestion) return;
+    if (mounted) {
+      setState(() => _isCheckingExamSuggestion = true);
+    } else {
+      _isCheckingExamSuggestion = true;
+    }
+
+    try {
+      final nextText = await (() async {
+        final classLabel = _selectedLevel ?? 'Fasalka 1';
+        final classLevel = StudentClassService.extractClassLevel(classLabel);
+
+        String suggestion =
+            'Riix halkan si aad u aragto ogeysiiska Final Exam-ka.';
+
+        final grandEligible = await FinalExamService.isEligibleForGrandFinal();
+        if (grandEligible) {
+          final grand = await FinalExamService.fetchGrandFinalExam();
+          if (grand != null && grand.noticeText.trim().isNotEmpty) {
+            suggestion = grand.noticeText.trim();
+          }
+        } else {
+          const subjects = ['Af Soomaali', 'English', 'Saynis', 'Xisaab'];
+          String? configuredNotice;
+          for (final subject in subjects) {
+            final exam = await FinalExamService.fetchClassFinalExam(
+              subject: subject,
+              classLevel: classLevel,
+            );
+            if (exam == null || !exam.isActive) continue;
+            if (configuredNotice == null && exam.noticeText.trim().isNotEmpty) {
+              configuredNotice = exam.noticeText.trim();
+            }
+
+            final eligible = await FinalExamService.isEligibleForClassFinal(
+              subject: subject,
+              classLevel: classLevel,
+            );
+            if (!eligible) continue;
+
+            if (exam.noticeText.trim().isNotEmpty) {
+              suggestion = exam.noticeText.trim();
+            }
+            break;
+          }
+          if (suggestion.startsWith('Riix halkan') &&
+              configuredNotice != null) {
+            suggestion = configuredNotice;
+          }
+        }
+
+        return suggestion;
+      })().timeout(const Duration(seconds: 12));
+
+      if (!mounted) return;
+      setState(() => _aiSuggestionText = nextText);
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _aiSuggestionText =
+            'Riix halkan si aad u aragto ogeysiiska Final Exam-ka.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _aiSuggestionText =
+            'Riix halkan si aad u aragto ogeysiiska Final Exam-ka.';
+      });
+    } finally {
+      if (!mounted) {
+        _isCheckingExamSuggestion = false;
+      } else {
+        setState(() => _isCheckingExamSuggestion = false);
+      }
+    }
+  }
+
+  void _openFinalExamNoticeFromSuggestion() {
+    final classLabel = _selectedLevel ?? 'Fasalka 1';
+    final classLevel = StudentClassService.extractClassLevel(classLabel);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FinalExamNoticeScreen(classLevel: classLevel),
+      ),
+    ).then((_) => _refreshAiSuggestion());
   }
 
   @override
@@ -759,6 +857,7 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
         _availableLevels = available;
         _selectedLevel = nextSelected;
       });
+      _refreshAiSuggestion();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -766,6 +865,7 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
         _availableLevels = const ["Fasalka 1"];
         _selectedLevel = "Fasalka 1";
       });
+      _refreshAiSuggestion();
     }
   }
 
@@ -1111,61 +1211,65 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
 
           const SizedBox(height: 30),
 
-          // AI Suggestion
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F5FF),
-              borderRadius: BorderRadius.circular(40), // Very rounded
-              border: Border.all(
-                color: const Color(0xFFC7D2FE),
-                width: 1.5,
-                style: BorderStyle.none,
-              ), // Wait, dashed border is tricky, let's use a normal border that matches the color or skip dashed
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
+          // AI Suggestion / Final Exam Notice
+          InkWell(
+            onTap: _openFinalExamNoticeFromSuggestion,
+            borderRadius: BorderRadius.circular(40),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F5FF),
+                borderRadius: BorderRadius.circular(40),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1D5AFF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.smart_toy,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "TALO AI / AI SUGGESTION",
+                          style: TextStyle(
+                            color: Color(0xFF1D5AFF),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _aiSuggestionText,
+                          style: const TextStyle(
+                            color: Color(0xFF374151),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
                     color: Color(0xFF1D5AFF),
-                    shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.smart_toy,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "TALO AI / AI SUGGESTION",
-                        style: const TextStyle(
-                          color: Color(0xFF1D5AFF),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "Aan barano midabada maanta! Let's learn colors today!",
-                        style: const TextStyle(
-                          color: Color(0xFF374151),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -1325,12 +1429,16 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     required String subtitle,
     required String progress,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = ((screenWidth - 55) / 2).clamp(150.0, 200.0);
+    final cardHeight = (cardWidth * 0.60).clamp(96.0, 120.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 200,
-          height: 120,
+          width: cardWidth,
+          height: cardHeight,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             image: DecorationImage(
@@ -1465,13 +1573,17 @@ class _ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardWidth = ((screenWidth - 55) / 2).clamp(150.0, 200.0);
+    final cardHeight = (cardWidth * 0.60).clamp(96.0, 120.0);
+
     final card = SizedBox(
-      width: 200,
+      width: cardWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 120,
+            height: cardHeight,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               image: DecorationImage(

@@ -13,11 +13,11 @@ class PlacementSelectionScreen extends StatefulWidget {
   });
 
   @override
-  State<PlacementSelectionScreen> createState() => _PlacementSelectionScreenState();
+  State<PlacementSelectionScreen> createState() =>
+      _PlacementSelectionScreenState();
 }
 
 class _PlacementSelectionScreenState extends State<PlacementSelectionScreen> {
-
   @override
   Widget build(BuildContext context) {
     bool isSomali = widget.locale == 'so';

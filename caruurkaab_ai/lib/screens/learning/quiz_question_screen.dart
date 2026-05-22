@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/student_profile_service.dart';
@@ -34,15 +36,23 @@ class QuizQuestionScreen extends StatefulWidget {
 }
 
 class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
+  static const String _chapterQuizPassPrefix = 'chapter_pass:';
+  static const int _questionsPerAttempt = 10;
+
   int _currentQuestionIndex = 0;
   int _score = 0;
   int _wrong = 0;
   int _earnedPoints = 0;
+  final List<Map<String, String>> _mistakes = [];
 
-  bool _answered = false;
   int? _selectedOptionIndex;
   bool _showHint = false;
   bool _currentQuestionEvaluated = false;
+  bool _isSubmitting = false;
+
+  static const int _questionTimeLimitSeconds = 45;
+  int _secondsLeft = _questionTimeLimitSeconds;
+  Timer? _questionTimer;
 
   bool _isLoading = true;
   final List<_QuizQuestion> _questions = [];
@@ -54,6 +64,12 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   void initState() {
     super.initState();
     _loadQuestions();
+  }
+
+  @override
+  void dispose() {
+    _questionTimer?.cancel();
+    super.dispose();
   }
 
   String _normalizeSubject(String subject) {
@@ -104,6 +120,21 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     final uid = user?.uid;
     if (uid != null && uid.isNotEmpty) return uid;
     return 'guest';
+  }
+
+  bool get _isChapterLevelQuiz {
+    final chapterId = widget.chapterId?.trim() ?? '';
+    return widget.lessonId.trim().isEmpty && chapterId.isNotEmpty;
+  }
+
+  String _chapterPassLessonKey(String chapterId) {
+    return '$_chapterQuizPassPrefix$chapterId';
+  }
+
+  String _localChapterPassKey(String chapterId) {
+    final subject = _normalizeSubject(widget.subjectName).trim().toLowerCase();
+    final userId = _getUserId();
+    return 'chapter_quiz_pass:$userId:${widget.classLevel}:$subject:$chapterId';
   }
 
   Future<List<Map<String, dynamic>>> _fetchLatestQuizzes({
@@ -256,6 +287,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       _quizPassingScorePercent = _quizPassingScorePercent.clamp(1, 100);
 
       final questions = data?['questions'];
+      final parsedQuestions = <_QuizQuestion>[];
       if (questions is List) {
         for (final raw in questions) {
           if (raw is! Map) continue;
@@ -264,7 +296,10 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           final questionText = map['question']?.toString().trim() ?? '';
           final optionsRaw = map['options'];
           final options = optionsRaw is List
-              ? optionsRaw.map((o) => o.toString().trim()).toList()
+              ? optionsRaw
+                    .map((o) => o.toString().trim())
+                    .where((o) => o.isNotEmpty)
+                    .toList()
               : <String>[];
           final correctIndex = map['correctIndex'] is int
               ? map['correctIndex'] as int
@@ -281,11 +316,17 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
 
           if (questionText.isEmpty || options.length < 2) continue;
 
-          _questions.add(
+          final safeCorrectIndex = correctIndex.clamp(0, options.length - 1);
+          final optionOrder = List<int>.generate(options.length, (i) => i)
+            ..shuffle(Random());
+          final shuffledOptions = optionOrder.map((i) => options[i]).toList();
+          final shuffledCorrectIndex = optionOrder.indexOf(safeCorrectIndex);
+
+          parsedQuestions.add(
             _QuizQuestion(
               question: questionText,
-              options: options.take(3).toList(),
-              correctIndex: correctIndex.clamp(0, options.length - 1),
+              options: shuffledOptions,
+              correctIndex: shuffledCorrectIndex,
               imageUrl: imageUrl?.isEmpty ?? true ? null : imageUrl,
               hint: hint,
               difficulty: difficulty,
@@ -298,8 +339,15 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         }
       }
 
+      parsedQuestions.shuffle(Random());
+      final selectedCount = min(_questionsPerAttempt, parsedQuestions.length);
+      _questions.addAll(parsedQuestions.take(selectedCount));
+
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (_questions.isNotEmpty) {
+        _startQuestionTimer();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -308,20 +356,53 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     }
   }
 
-  Future<void> _markLessonComplete() async {
+  void _startQuestionTimer() {
+    _questionTimer?.cancel();
+    _secondsLeft = _questionTimeLimitSeconds;
+    _questionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_secondsLeft <= 1) {
+        timer.cancel();
+        _secondsLeft = 0;
+        _submitAnswer(triggeredByTimer: true);
+      } else {
+        setState(() {
+          _secondsLeft -= 1;
+        });
+      }
+    });
+  }
+
+  Future<void> _markChapterQuizComplete() async {
     try {
+      final chapterId = widget.chapterId?.trim() ?? '';
+      if (chapterId.isEmpty) return;
       final userId = _getUserId();
-      final lessonId = widget.lessonId.trim();
-      if (lessonId.isEmpty) return;
-      await Supabase.instance.client.from('lesson_progress').upsert({
+      final today = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+      await Supabase.instance.client.from('student_quiz_progress').upsert({
         'user_id': userId,
-        'lesson_id': int.tryParse(lessonId) ?? lessonId,
-        'completed': true,
-        'completed_at': DateTime.now().toUtc().toIso8601String(),
-      }, onConflict: 'user_id,lesson_id');
+        'lesson_id': _chapterPassLessonKey(chapterId),
+        'quiz_id': _quizId,
+        'correct_count': _score,
+        'wrong_count': _wrong,
+        'level': 1,
+        'total_points': _earnedPoints,
+        'badges': const <String>[],
+        'attempt_date': today,
+      }, onConflict: 'user_id,lesson_id,attempt_date');
     } catch (_) {
-      // Ignore progress write errors.
+      // Ignore chapter pass write errors.
     }
+  }
+
+  Future<void> _cacheChapterQuizPassLocal() async {
+    final chapterId = widget.chapterId?.trim() ?? '';
+    if (chapterId.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_localChapterPassKey(chapterId), true);
   }
 
   List<String> _resolveBadges({
@@ -447,15 +528,16 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
   }
 
   void _onOptionSelected(int index) {
-    if (_answered) return;
     setState(() {
       _selectedOptionIndex = index;
-      _answered = true;
     });
   }
 
-  Future<void> _submitAnswer() async {
-    if (!_answered) return;
+  Future<void> _submitAnswer({bool triggeredByTimer = false}) async {
+    if (_isSubmitting) return;
+    if (!triggeredByTimer && _selectedOptionIndex == null) return;
+    _isSubmitting = true;
+    _questionTimer?.cancel();
 
     final currentQ = _questions[_currentQuestionIndex];
     if (!_currentQuestionEvaluated) {
@@ -465,6 +547,25 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         _earnedPoints += currentQ.points;
       } else {
         _wrong++;
+        
+        String yourAns = _selectedOptionIndex == null 
+            ? 'Lama dooran' 
+            : currentQ.options[_selectedOptionIndex!];
+            
+        String correctAns = currentQ.type == 'short_answer'
+            ? 'Saxda kuma jirto options-ka' // (quiz_question_screen handles short_answer? Actually it seems it handles mcq/true_false mostly since it uses options[correctIndex])
+            : currentQ.options[currentQ.correctIndex];
+
+        // Ensure we don't index out of bounds for short_answer if options are empty
+        if (currentQ.options.isNotEmpty && currentQ.correctIndex < currentQ.options.length) {
+            correctAns = currentQ.options[currentQ.correctIndex];
+        }
+
+        _mistakes.add({
+          'question': currentQ.question,
+          'correct_answer': correctAns,
+          'your_answer': yourAns,
+        });
       }
       _currentQuestionEvaluated = true;
     }
@@ -472,11 +573,13 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
-        _answered = false;
         _selectedOptionIndex = null;
         _showHint = false;
         _currentQuestionEvaluated = false;
+        _secondsLeft = _questionTimeLimitSeconds;
       });
+      _startQuestionTimer();
+      _isSubmitting = false;
       return;
     }
 
@@ -484,9 +587,13 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
         (_questions.length * (_quizPassingScorePercent / 100)).ceil();
     final isPass = _score >= requiredCorrect;
     if (isPass) {
-      await _markLessonComplete();
+      if (_isChapterLevelQuiz) {
+        await _markChapterQuizComplete();
+        await _cacheChapterQuizPassLocal();
+      }
     }
     final advanced = await _persistAdvancedProgress();
+    _isSubmitting = false;
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -498,6 +605,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           earnedPoints: _earnedPoints,
           badges: advanced.badges,
           dailyRewardUnlocked: advanced.dailyRewardUnlocked,
+          mistakes: _mistakes,
           lessonTitle: widget.lessonTitle,
           subjectName: widget.subjectName,
           classLevel: widget.classLevel,
@@ -571,16 +679,32 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 8,
-                  backgroundColor: const Color(0xFFEEF2FF),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF1D5AFF),
+              child: Column(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 8,
+                      backgroundColor: const Color(0xFFEEF2FF),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF1D5AFF),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '$_secondsLeft s',
+                      style: const TextStyle(
+                        color: Color(0xFF1D5AFF),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -600,19 +724,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
-                    if (currentQ.imageUrl != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Image.network(
-                            currentQ.imageUrl!,
-                            height: 200,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
+                    _buildSafeNetworkImage(currentQ.imageUrl),
                     if (currentQ.hint.trim().isNotEmpty) ...[
                       Align(
                         alignment: Alignment.centerLeft,
@@ -650,17 +762,19 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: InkWell(
-                onTap: _answered ? _submitAnswer : null,
+                onTap: (_selectedOptionIndex != null && !_isSubmitting)
+                    ? () => _submitAnswer()
+                    : null,
                 borderRadius: BorderRadius.circular(30),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   decoration: BoxDecoration(
-                    color: _answered
+                    color: (_selectedOptionIndex != null && !_isSubmitting)
                         ? const Color(0xFF1D5AFF)
                         : const Color(0xFFD1D5DB),
                     borderRadius: BorderRadius.circular(30),
-                    boxShadow: _answered
+                    boxShadow: (_selectedOptionIndex != null && !_isSubmitting)
                         ? [
                             BoxShadow(
                               color: const Color(
@@ -697,26 +811,11 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     return Column(
       children: List.generate(q.options.length, (index) {
         final isSelected = _selectedOptionIndex == index;
-        final isCorrect = index == q.correctIndex;
 
         Color bgColor = Colors.white;
         Color borderColor = const Color(0xFFE5E7EB);
         Color textColor = const Color(0xFF4B5563);
-        Widget trailing = const SizedBox.shrink();
-
-        if (_answered) {
-          if (isCorrect) {
-            bgColor = const Color(0xFFD1FAE5);
-            borderColor = const Color(0xFF10B981);
-            textColor = const Color(0xFF065F46);
-            trailing = const Icon(Icons.check_circle, color: Color(0xFF10B981));
-          } else if (isSelected && !isCorrect) {
-            bgColor = const Color(0xFFFEE2E2);
-            borderColor = const Color(0xFFEF4444);
-            textColor = const Color(0xFF991B1B);
-            trailing = const Icon(Icons.cancel, color: Color(0xFFEF4444));
-          }
-        } else if (isSelected) {
+        if (isSelected) {
           bgColor = const Color(0xFFEFF6FF);
           borderColor = const Color(0xFF3B82F6);
         }
@@ -746,13 +845,68 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
                       ),
                     ),
                   ),
-                  trailing,
                 ],
               ),
             ),
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildSafeNetworkImage(String? url) {
+    if (url == null || url.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          url.trim(),
+          height: 200,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              height: 200,
+              color: const Color(0xFFF3F4F6),
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(
+                    Icons.broken_image,
+                    color: Color(0xFFEF4444),
+                    size: 48,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Sawirka waa la waayay',
+                    style: TextStyle(
+                      color: Color(0xFF991B1B),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
