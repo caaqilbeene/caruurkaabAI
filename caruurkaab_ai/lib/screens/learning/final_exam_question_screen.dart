@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/final_exam_service.dart';
+import 'final_exam_notice_screen.dart';
 import 'student_dashboard.dart';
 
 class FinalExamQuestionScreen extends StatefulWidget {
@@ -213,6 +214,24 @@ class _FinalExamQuestionScreenState extends State<FinalExamQuestionScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  void _handleContinueOrRetry() {
+    if (_pass) {
+      _continueAfterResult();
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FinalExamNoticeScreen(
+            subjectName: widget.exam.subjectName,
+            classLevel: widget.exam.classLevel,
+            initialExam: widget.exam,
+            returnToClassSubjectsOnFinish: widget.returnToClassSubjectsOnFinish,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_questions.isEmpty) {
@@ -361,16 +380,16 @@ class _FinalExamQuestionScreenState extends State<FinalExamQuestionScreen> {
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: _continueAfterResult,
+                    onPressed: _handleContinueOrRetry,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1D5AFF),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Sii wad',
-                      style: TextStyle(
+                    child: Text(
+                      _pass ? 'Sii wad' : 'Markale ku noqo imtixaanka',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                       ),
