@@ -656,6 +656,7 @@ class _LessonListScreenState extends State<LessonListScreen> {
                     nextLessonId: nextLesson?['id']?.toString(),
                     nextLessonTitle: nextLesson?['title']?.toString(),
                     nextLessonChapterId: nextLesson?['chapter_id']?.toString(),
+                    nextLessonMap: _nextLessonById,
                   ),
                 ),
               );

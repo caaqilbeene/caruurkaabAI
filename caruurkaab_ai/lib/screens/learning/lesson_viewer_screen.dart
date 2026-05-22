@@ -16,6 +16,7 @@ class LessonViewerScreen extends StatefulWidget {
   final String? nextLessonId;
   final String? nextLessonTitle;
   final String? nextLessonChapterId;
+  final Map<String, Map<String, dynamic>?>? nextLessonMap;
 
   const LessonViewerScreen({
     super.key,
@@ -27,6 +28,7 @@ class LessonViewerScreen extends StatefulWidget {
     this.nextLessonId,
     this.nextLessonTitle,
     this.nextLessonChapterId,
+    this.nextLessonMap,
   });
 
   @override
@@ -234,35 +236,9 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchNextLessonInChapter(
-    String lessonId,
-    String chapterId,
-  ) async {
-    try {
-      final chapterValue = int.tryParse(chapterId) ?? chapterId;
-      final rows = await Supabase.instance.client
-          .from('lessons')
-          .select('id,title,chapter_id,created_at')
-          .eq('chapter_id', chapterValue)
-          .order('created_at', ascending: true);
-      final lessons = rows.map((e) => Map<String, dynamic>.from(e)).toList();
-      final currentIndex = lessons.indexWhere(
-        (row) => row['id']?.toString() == lessonId,
-      );
-      if (currentIndex < 0 || currentIndex + 1 >= lessons.length) {
-        return null;
-      }
-      return lessons[currentIndex + 1];
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _openNextLessonInChapter(String lessonId) async {
     final chapterId = (widget.chapterId ?? '').trim();
-    final nextOfNext = chapterId.isEmpty
-        ? null
-        : await _fetchNextLessonInChapter(lessonId, chapterId);
+    final nextOfNext = widget.nextLessonMap?[lessonId];
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -278,12 +254,14 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
           nextLessonId: nextOfNext?['id']?.toString(),
           nextLessonTitle: nextOfNext?['title']?.toString(),
           nextLessonChapterId: nextOfNext?['chapter_id']?.toString(),
+          nextLessonMap: widget.nextLessonMap,
         ),
       ),
     );
   }
 
   Future<void> _openNextLessonWithoutChapter(String lessonId) async {
+    final nextOfNext = widget.nextLessonMap?[lessonId];
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -296,9 +274,10 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
           lessonId: lessonId,
           classLevel: widget.classLevel,
           chapterId: widget.nextLessonChapterId,
-          nextLessonId: null,
-          nextLessonTitle: null,
-          nextLessonChapterId: null,
+          nextLessonId: nextOfNext?['id']?.toString(),
+          nextLessonTitle: nextOfNext?['title']?.toString(),
+          nextLessonChapterId: nextOfNext?['chapter_id']?.toString(),
+          nextLessonMap: widget.nextLessonMap,
         ),
       ),
     );

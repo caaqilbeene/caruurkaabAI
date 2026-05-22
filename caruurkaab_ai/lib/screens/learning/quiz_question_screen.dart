@@ -406,6 +406,36 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     await prefs.setBool(_localChapterPassKey(chapterId), true);
   }
 
+  Future<void> _markAllChapterLessonsComplete(String chapterId) async {
+    try {
+      final db = Supabase.instance.client;
+      final userId = _getUserId();
+      final chapterValue = int.tryParse(chapterId) ?? chapterId;
+
+      final rows = await db
+          .from('lessons')
+          .select('id')
+          .eq('chapter_id', chapterValue);
+
+      if (rows.isEmpty) return;
+
+      final completedAt = DateTime.now().toUtc().toIso8601String();
+      final upsertRows = rows.map((r) {
+        final lessonId = r['id'];
+        return {
+          'user_id': userId,
+          'lesson_id': lessonId,
+          'completed': true,
+          'completed_at': completedAt,
+        };
+      }).toList();
+
+      await db.from('lesson_progress').upsert(upsertRows, onConflict: 'user_id,lesson_id');
+    } catch (e) {
+      debugPrint("Error marking all chapter lessons complete: $e");
+    }
+  }
+
   List<String> _resolveBadges({
     required int totalCorrect,
     required int totalPoints,
@@ -591,6 +621,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       if (_isChapterLevelQuiz) {
         await _markChapterQuizComplete();
         await _cacheChapterQuizPassLocal();
+        await _markAllChapterLessonsComplete(widget.chapterId!);
       }
     }
     final advanced = await _persistAdvancedProgress();
