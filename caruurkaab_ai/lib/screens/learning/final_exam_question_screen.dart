@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/final_exam_service.dart';
+import '../../services/student_class_service.dart';
 import 'final_exam_notice_screen.dart';
 import 'student_dashboard.dart';
 
@@ -191,19 +192,22 @@ class _FinalExamQuestionScreenState extends State<FinalExamQuestionScreen> {
     return '';
   }
 
-  void _continueAfterResult() {
+  Future<void> _continueAfterResult() async {
     if (widget.exam.isGrandFinal) {
       Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
     if (widget.returnToClassSubjectsOnFinish) {
+      final assigned = await StudentClassService.refreshAssignedClassByProgress();
+      final maxUnlocked = StudentClassService.extractClassLevel(assigned);
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (_) => ClassSubjectsScreen(
             className: 'Fasalka ${widget.exam.classLevel}',
-            maxUnlockedLevel: 4,
+            maxUnlockedLevel: maxUnlocked,
           ),
         ),
         (route) => route.isFirst,

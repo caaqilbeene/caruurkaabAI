@@ -61,6 +61,26 @@ class StudentClassService {
     return normalizeClassLabel(saved);
   }
 
+  static String _normalizeSubject(String subject) {
+    final s = subject.trim().toLowerCase();
+    final compact = s.replaceAll(RegExp(r'[\s\-_]'), '');
+    if (compact == 'afsomali' ||
+        compact == 'afsoomaali' ||
+        compact == 'afsoomaaliga') {
+      return 'Af Soomaali';
+    }
+    if (compact == 'saynis' || compact == 'seynis') {
+      return 'Saynis';
+    }
+    if (compact == 'english') {
+      return 'English';
+    }
+    if (compact == 'xisaab' || compact == 'math') {
+      return 'Xisaab';
+    }
+    return subject.trim();
+  }
+
   static Future<String> refreshAssignedClassByProgress() async {
     final assigned = await fetchAssignedClass();
     int currentLevel = extractClassLevel(assigned);
@@ -79,28 +99,38 @@ class StudentClassService {
 
     if (examsRows.isEmpty) return assigned;
 
+    const requiredSubjects = ["Af Soomaali", "English", "Saynis", "Xisaab"];
+
     while (currentLevel < 4) {
       final currentLevelExams = examsRows.where((row) {
         final level = int.tryParse(row['class_level'].toString());
         return level == currentLevel;
       }).toList();
 
-      if (currentLevelExams.isEmpty) {
-        break; // No exams defined for this level, cannot promote
-      }
-
       bool allPassed = true;
-      for (final examRow in currentLevelExams) {
-        final subjectName = examRow['subject_name']?.toString();
-        final examId = examRow['id']?.toString();
-        
-        if (subjectName == null || examId == null) {
+      for (final requiredSubject in requiredSubjects) {
+        Map<String, dynamic>? match;
+        for (final row in currentLevelExams) {
+          final name = (row['subject_name'] ?? '').toString();
+          if (_normalizeSubject(name) == requiredSubject) {
+            match = row;
+            break;
+          }
+        }
+
+        if (match == null) {
+          allPassed = false;
+          break;
+        }
+
+        final examId = match['id']?.toString();
+        if (examId == null) {
           allPassed = false;
           break;
         }
 
         final scoreData = await FinalExamService.fetchCombinedSubjectScore(
-          subjectName,
+          requiredSubject,
           currentLevel,
           examId,
         );
