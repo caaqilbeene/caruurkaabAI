@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
 import 'quiz_intro_screen.dart';
 
@@ -227,6 +228,7 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
         'completed': true,
         'completed_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'user_id,lesson_id');
+      LessonProgressNotifier.notify();
     } catch (_) {
       // Keep flow smooth even if progress write fails.
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
 import 'lesson_viewer_screen.dart';
 
@@ -38,7 +39,14 @@ class _LessonListScreenState extends State<LessonListScreen> {
   @override
   void initState() {
     super.initState();
+    LessonProgressNotifier.addListener(_fetchData);
     _fetchData();
+  }
+
+  @override
+  void dispose() {
+    LessonProgressNotifier.removeListener(_fetchData);
+    super.dispose();
   }
 
   String _normalizeSubject(String subject) {

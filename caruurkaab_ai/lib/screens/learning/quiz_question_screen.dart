@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/student_class_service.dart';
 import '../../services/student_profile_service.dart';
 import 'quiz_result_screen.dart';
 
@@ -593,6 +594,7 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
       }
     }
     final advanced = await _persistAdvancedProgress();
+    LessonProgressNotifier.notify();
     _isSubmitting = false;
     if (!mounted) return;
     Navigator.pushReplacement(

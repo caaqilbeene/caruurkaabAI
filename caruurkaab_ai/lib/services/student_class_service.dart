@@ -155,3 +155,16 @@ class StudentClassService {
     return promoted;
   }
 }
+
+class LessonProgressNotifier {
+  static final List<void Function()> _listeners = [];
+  static void addListener(void Function() listener) => _listeners.add(listener);
+  static void removeListener(void Function() listener) => _listeners.remove(listener);
+  static void notify() {
+    for (final listener in List.from(_listeners)) {
+      try {
+        listener();
+      } catch (_) {}
+    }
+  }
+}
