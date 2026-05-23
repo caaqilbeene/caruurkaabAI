@@ -641,17 +641,13 @@ class _SignupScreenState extends State<SignupScreen> {
               const SizedBox(height: 10),
 
               Center(
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE5EDFF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_add,
-                    size: 30,
-                    color: Color(0xFF1D5AFF),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/images/logo.jpeg',
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),

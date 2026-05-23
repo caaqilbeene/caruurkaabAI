@@ -596,18 +596,14 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 10),
 
               Center(
-                child: Container(
-                  width: 60, // Reduced from 80
-                  height: 60, // Reduced from 80
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE5EDFF),
-                    shape: BoxShape.circle,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/images/logo.jpeg',
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
                   ),
-                  child: const Icon(
-                    Icons.lock,
-                    size: 30,
-                    color: Color(0xFF1D5AFF),
-                  ), // Reduced icon size
                 ),
               ),
 
