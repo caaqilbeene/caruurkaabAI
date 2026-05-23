@@ -180,7 +180,7 @@ class _AuthGateState extends State<AuthGate> {
         backgroundColor: Colors.white,
         body: Center(
           child: Image.asset(
-            'assets/images/logo.png',
+            'assets/images/logo.jpeg',
             width: 150,
             height: 150,
             fit: BoxFit.contain,
