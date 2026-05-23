@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caruurkaab AI - Macluumaadka Play Store & Keystore</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        
+        :root {
+            --primary: #4F46E5;
+            --primary-light: #EEF2F6;
+            --success: #10B981;
+            --success-light: #ECFDF5;
+            --warning: #F59E0B;
+            --warning-light: #FEF3C7;
+            --text-dark: #1E293B;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #F8FAFC;
+            color: var(--text-dark);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #FFFFFF;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }
+
+        .logo-text {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin: 5px 0 0 0;
+            font-size: 16px;
+        }
+
+        .card {
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .card-warning {
+            background-color: var(--warning-light);
+            border-color: #FDE68A;
+        }
+
+        .card-warning h2 {
+            color: #92400E;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--primary);
+            border-left: 4px solid var(--primary);
+            padding-left: 12px;
+        }
+
+        .credential-grid {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 12px;
+            font-size: 15px;
+        }
+
+        .label {
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .value {
+            font-family: 'Courier New', Courier, monospace;
+            background: #F1F5F9;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            color: #0F172A;
+            word-break: break-all;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 15px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .badge-success {
+            background-color: var(--success-light);
+            color: var(--success);
+        }
+
+        .badge-pending {
+            background-color: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .item-title {
+            font-weight: 600;
+            margin: 0 0 4px 0;
+        }
+
+        .item-desc {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+
+
+        @media print {
+            body {
+                background-color: #FFFFFF;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+            }
+            .value {
+                background: #F8FAFC !important;
+                border: 1px solid #CBD5E1;
+            }
+
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 class="logo-text">Caruurkaab AI</h1>
+        <p class="subtitle">Play Store Publishing & Keystore Credentials</p>
+    </div>
+
+    <!-- IMPORTANT WARNING CARD -->
+    <div class="card card-warning">
+        <h2>⚠️ Digniin Aad U Muhiim Ah</h2>
+        <p style="margin: 0; color: #78350F; font-size: 15px;">
+            Macluumaadka hoose ee Keystore-ka waa furaha rasmiga ah ee abkaaga. Haddii aad lumiso faylka <strong>upload-keystore.jks</strong> ama aad hilmaamto password-ka, <strong>waligaa ma awoodi doontid inaad abka cusbooneysiiso (update)</strong> mustaqbalka. Fadlan faylkan iyo warqaddan labadaba ku kaydso meel ammaan ah (sida Google Drive ama Outlook email).
+        </p>
+    </div>
+
+    <!-- KEYSTORE CREDENTIALS CARD -->
+    <div class="card">
+        <h3 class="card-title">Macluumaadka Saxiixa Abka (Keystore Details)</h3>
+        <div class="credential-grid">
+            <div class="label">Magaca Faylka:</div>
+            <div class="value">upload-keystore.jks</div>
+
+            <div class="label">Halka uu ku yaallo:</div>
+            <div class="value">caruurkaab_ai/android/app/upload-keystore.jks</div>
+
+            <div class="label">Key Alias:</div>
+            <div class="value">upload</div>
+
+            <div class="label">Keystore Password:</div>
+            <div class="value">CaruurKaabAI2026</div>
+
+            <div class="label">Key Password:</div>
+            <div class="value">CaruurKaabAI2026</div>
+        </div>
+    </div>
+
+    <!-- CONFIGURATION DETAILS CARD -->
+    <div class="card">
+        <h3 class="card-title">Habaynta Firebase & Abka (App Configurations)</h3>
+        <div class="credential-grid">
+            <div class="label">Magaca Abka (Display):</div>
+            <div class="value">Caruurkaab AI</div>
+
+            <div class="label">Package Name (Android):</div>
+            <div class="value">com.caruurkaab.app</div>
+
+            <div class="label">Bundle ID (iOS):</div>
+            <div class="value">com.caruurkaab.app</div>
+
+            <div class="label">Firebase Android App ID:</div>
+            <div class="value">1:573642272367:android:ab60c41a9f45b03f27679a</div>
+        </div>
+    </div>
+
+    <!-- WORK COMPLETED CHECKLIST -->
+    <div class="card">
+        <h3 class="card-title">Wixii inoo Dhammaystirmay (Completed)</h3>
+        
+        <div class="checklist-item">
+            <div class="badge badge-success">✓</div>
+            <div>
+                <p class="item-title">Magaca Abka oo la beddelay</p>
+                <p class="item-desc">Waxaa laga dhigay "Caruurkaab AI" labada nidaam ee Android iyo iOS.</p>
+            </div>
+        </div>
+
+        <div class="checklist-item">
+            <div class="badge badge-success">✓</div>
+            <div>
+                <p class="item-title">Firebase Android & iOS Integration</p>
+                <p class="item-desc">Waxaa la isku xiray faylasha google-services.json iyo GoogleService-Info.plist oo leh com.caruurkaab.app.</p>
+            </div>
+        </div>
+
+        <div class="checklist-item">
+            <div class="badge badge-success">✓</div>
+            <div>
+                <p class="item-title">Furaha Keystore oo la abuuray</p>
+                <p class="item-desc">Waxaa la abuuray upload-keystore.jks laguna dhex habeeyay build.gradle.kts si uu app-ku u saxiixmo.</p>
+            </div>
+        </div>
+
+        <div class="checklist-item">
+            <div class="badge badge-success">✓</div>
+            <div>
+                <p class="item-title">Dhisidda Sii-daynta Rasmiga ah (AAB & APK)</p>
+                <p class="item-desc">Faylka rasmiga ah ee CaruurKaabAI-release.aab (Play Store) iyo CaruurKaabAI-release.apk (Tijaabo) waa la dhisay oo waxay yaalaan Desktop-ka.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PENDING ITEMS CHECKLIST -->
+    <div class="card">
+        <h3 class="card-title">Wixii kuu dhiman markaad Play Store-ka saarayso</h3>
+
+        <div class="checklist-item">
+            <div class="badge badge-pending">⏳</div>
+            <div>
+                <p class="item-title">Diiwaangelinta Google Play Console ($25)</p>
+                <p class="item-desc">Inaad bixiso khidmadda hal mar ah ee diiwaangelinta horumariyaha Google.</p>
+            </div>
+        </div>
+
+        <div class="checklist-item">
+            <div class="badge badge-pending">⏳</div>
+            <div>
+                <p class="item-title">Shubista faylka .aab (Upload App Bundle)</p>
+                <p class="item-desc">Inaad u gudbiso faylka CaruurKaabAI-release.aab qaybta Production ee Play Console.</p>
+            </div>
+        </div>
+
+        <div class="checklist-item">
+            <div class="badge badge-pending">⏳</div>
+            <div>
+                <p class="item-title">Privacy Policy Link & Screenshots</p>
+                <p class="item-desc">Diyaarinta link-ga dhowrida xogta iyo sawirrada shaashadda abka.</p>
+            </div>
+        </div>
+    </div>
+
+
+</div>
+
+</body>
+</html>
