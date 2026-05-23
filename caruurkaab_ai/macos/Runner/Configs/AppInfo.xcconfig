@@ -8,7 +8,5 @@
 PRODUCT_NAME = caruurkaab_ai
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.caruurkaabAi
-
-// The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_BUNDLE_IDENTIFIER = com.caruurkaab.app
+PRODUCT_COPYRIGHT = Copyright © 2026 com.caruurkaab. All rights reserved.

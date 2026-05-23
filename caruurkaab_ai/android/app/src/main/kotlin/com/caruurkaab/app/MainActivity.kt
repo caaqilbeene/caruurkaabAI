@@ -1,5 +1,6 @@
-package com.example.caruurkaab_ai
+package com.caruurkaab.app
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity()
+

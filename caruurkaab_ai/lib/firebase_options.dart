@@ -43,6 +43,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '573642272367',
     projectId: 'caruurkaabai',
     storageBucket: 'caruurkaabai.firebasestorage.app',
-    iosBundleId: 'com.example.caruurkaabAi',
+    iosBundleId: 'com.caruurkaab.app',
   );
 }
