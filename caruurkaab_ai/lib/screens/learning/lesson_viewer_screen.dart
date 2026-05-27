@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/student_class_service.dart';
@@ -172,12 +172,8 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
     }
 
     if (currentChapterId.isNotEmpty) {
-      final passed = await _checkChapterQuizPassed(currentChapterId);
-      if (!mounted) return;
-      if (!passed) {
-        _openChapterQuiz();
-        return;
-      }
+      _openChapterQuiz();
+      return;
     }
 
     if (hasNextLesson) {
@@ -194,31 +190,7 @@ class _LessonViewerScreenState extends State<LessonViewerScreen> {
     return 'guest';
   }
 
-  String _normalizeSubject(String subject) {
-    final s = subject.trim().toLowerCase();
-    final compact = s.replaceAll(RegExp(r'[\s\-_]'), '');
-    if (compact == 'afsomali' ||
-        compact == 'afsoomaali' ||
-        compact == 'afsoomaaliga') {
-      return 'Af Soomaali';
-    }
-    if (compact == 'seynis' || compact == 'saynis') {
-      return 'Saynis';
-    }
-    return subject;
-  }
 
-  Future<bool> _checkChapterQuizPassed(String chapterId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = _resolveUserId();
-      final subject = _normalizeSubject(widget.subjectName).trim().toLowerCase();
-      final key = 'chapter_quiz_pass:$userId:${widget.classLevel}:$subject:$chapterId';
-      return prefs.getBool(key) == true;
-    } catch (_) {
-      return false;
-    }
-  }
 
   Future<void> _markLessonComplete() async {
     try {
