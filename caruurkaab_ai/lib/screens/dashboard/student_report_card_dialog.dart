@@ -182,7 +182,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     final subjectName = result['subjectName'] as String;
                     final score = result['score'] as SubjectScoreData;
                     final double totalScoreVal = score.totalScore;
-                    final String gradeStr = _getGrade(totalScoreVal);
+                    final String gradeStr = score.hasTakenFinal ? _getGrade(totalScoreVal) : 'Lama Gelin';
   
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -224,9 +224,11 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: totalScoreVal >= 50
-                                        ? const Color(0xFFECFDF5)
-                                        : const Color(0xFFFEF2F2),
+                                    color: !score.hasTakenFinal
+                                        ? const Color(0xFFE2E8F0)
+                                        : (totalScoreVal >= 50
+                                            ? const Color(0xFFECFDF5)
+                                            : const Color(0xFFFEF2F2)),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
@@ -234,9 +236,11 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w900,
-                                      color: totalScoreVal >= 50
-                                          ? const Color(0xFF10B981)
-                                          : const Color(0xFFEF4444),
+                                      color: !score.hasTakenFinal
+                                          ? const Color(0xFF64748B)
+                                          : (totalScoreVal >= 50
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFFEF4444)),
                                     ),
                                   ),
                                 ),
