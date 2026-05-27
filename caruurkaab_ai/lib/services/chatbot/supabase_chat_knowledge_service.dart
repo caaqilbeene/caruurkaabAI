@@ -385,6 +385,9 @@ class SupabaseChatKnowledgeService {
         .toString()
         .trim();
     if (direct.isNotEmpty) {
+      if (options.isEmpty) {
+        return direct;
+      }
       final labelIndex = _choiceLabelToIndex(direct);
       if (labelIndex != null &&
           labelIndex >= 0 &&

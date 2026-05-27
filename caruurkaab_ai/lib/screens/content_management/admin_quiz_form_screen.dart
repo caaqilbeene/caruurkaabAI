@@ -128,7 +128,9 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
         if (raw is! Map) continue;
         final entry = _QuizQuestionEntry();
         entry.type = (raw['type'] ?? 'mcq').toString().trim().toLowerCase();
-        if (entry.type != 'true_false') entry.type = 'mcq';
+        if (entry.type != 'true_false' && entry.type != 'fill_blank') {
+          entry.type = 'mcq';
+        }
 
         entry.questionController.text = (raw['question'] ?? '').toString();
         entry.imageUrlController.text = (raw['imageUrl'] ?? '').toString();
@@ -510,6 +512,7 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                       items: const [
                         DropdownMenuItem(value: 'mcq', child: Text('MCQ (A/B/C)')),
                         DropdownMenuItem(value: 'true_false', child: Text('True / False')),
+                        DropdownMenuItem(value: 'fill_blank', child: Text('Fill in the blank')),
                       ],
                       onChanged: (value) {
                         if (value == null) return;
@@ -633,8 +636,9 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                         smartDashesType: SmartDashesType.disabled,
                         smartQuotesType: SmartQuotesType.disabled,
                         decoration: InputDecoration(
-                          hintText:
-                              'Correct Answer (waxaad qori kartaa A/B/C ama jawaabta saxda ah)',
+                          hintText: q.type == 'fill_blank'
+                              ? 'Correct Answer (Geli jawaabta saxda ah)'
+                              : 'Correct Answer (waxaad qori kartaa A/B/C ama jawaabta saxda ah)',
                           filled: true,
                           fillColor: const Color(0xFFF9FAFB),
                           border: OutlineInputBorder(
@@ -736,7 +740,7 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                     return;
                   }
                   questions.add({
-                    'type': 'mcq',
+                    'type': q.type,
                     'question': question,
                     'imageUrl': q.imageUrlController.text.trim(),
                     'options': options,

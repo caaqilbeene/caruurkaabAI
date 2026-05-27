@@ -315,16 +315,22 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               int.tryParse(map['points']?.toString() ?? '') ??
               _defaultPointsForDifficulty(difficulty);
 
-          if (questionText.isEmpty || options.length < 2) continue;
+          if (questionText.isEmpty) continue;
+          if (type != 'fill_blank' && options.length < 2) continue;
 
-          final safeCorrectIndex = correctIndex.clamp(0, options.length - 1);
           final List<String> finalOptions;
           final int finalCorrectIndex;
 
           if (type == 'true_false') {
+            final safeCorrectIndex = correctIndex.clamp(0, options.length - 1);
             finalOptions = List<String>.from(options);
             finalCorrectIndex = safeCorrectIndex;
+          } else if (type == 'fill_blank' && options.isEmpty) {
+            final correctAnswerText = (map['correctAnswer'] ?? map['answer'] ?? '').toString().trim();
+            finalOptions = [correctAnswerText, 'Ikhtiyaar 2', 'Ikhtiyaar 3'];
+            finalCorrectIndex = 0;
           } else {
+            final safeCorrectIndex = correctIndex.clamp(0, options.length - 1);
             final optionOrder = List<int>.generate(options.length, (i) => i)
               ..shuffle(Random());
             finalOptions = optionOrder.map((i) => options[i]).toList();
@@ -566,6 +572,28 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
     );
   }
 
+  String _fillPrefix(String question) {
+    if (question.contains('__')) {
+      return question.split('__').first;
+    }
+    if (question.contains('_____')) {
+      return question.split('_____').first;
+    }
+    return '$question ';
+  }
+
+  String _fillSuffix(String question) {
+    if (question.contains('__')) {
+      final parts = question.split('__');
+      return parts.length > 1 ? parts.sublist(1).join('__') : '';
+    }
+    if (question.contains('_____')) {
+      final parts = question.split('_____');
+      return parts.length > 1 ? parts.sublist(1).join('_____') : '';
+    }
+    return '';
+  }
+
   void _onOptionSelected(int index) {
     setState(() {
       _selectedOptionIndex = index;
@@ -754,16 +782,66 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      currentQ.question,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF111827),
-                        height: 1.3,
+                    if (currentQ.type == 'fill_blank')
+                      RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: Color(0xFF111827),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            height: 1.3,
+                          ),
+                          children: [
+                            TextSpan(text: _fillPrefix(currentQ.question)),
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _selectedOptionIndex == null
+                                      ? const Color(0xFFF3F4F6)
+                                      : const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _selectedOptionIndex == null
+                                        ? const Color(0xFFD1D5DB)
+                                        : const Color(0xFF3B82F6),
+                                  ),
+                                ),
+                                child: Text(
+                                  _selectedOptionIndex == null
+                                      ? '______'
+                                      : currentQ.options[_selectedOptionIndex!],
+                                  style: TextStyle(
+                                    color: _selectedOptionIndex == null
+                                        ? const Color(0xFF9CA3AF)
+                                        : const Color(0xFF1D5AFF),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TextSpan(text: _fillSuffix(currentQ.question)),
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        currentQ.question,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF111827),
+                          height: 1.3,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
                     const SizedBox(height: 20),
                     _buildSafeNetworkImage(currentQ.imageUrl),
                     if (currentQ.hint.trim().isNotEmpty) ...[
