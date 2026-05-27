@@ -711,6 +711,8 @@ class _LessonListScreenState extends State<LessonListScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     softWrap: true,
                   ),
                   const SizedBox(height: 2),
