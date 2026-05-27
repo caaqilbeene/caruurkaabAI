@@ -20,11 +20,19 @@ class ChatController {
         "Jawaab lama helin, fadlan casharka dib u eeg ama macalinka la xiriir.";
 
     try {
-      // 1) SUPABASE FIRST
-      final supabaseAnswer = await supabaseService.querySupabaseAnswer(input);
+      // 1) SUPABASE FIRST (Cache)
+      var supabaseAnswer = await supabaseService.querySupabaseAnswer(input);
       if (supabaseAnswer != null && supabaseAnswer.isNotEmpty) {
         return "Jawaabta su'aasha waa: $supabaseAnswer 😊";
       }
+
+      // 2) Force refresh and query again (in case new database content was added)
+      await supabaseService.getKnowledge(forceRefresh: true);
+      supabaseAnswer = await supabaseService.querySupabaseAnswer(input);
+      if (supabaseAnswer != null && supabaseAnswer.isNotEmpty) {
+        return "Jawaabta su'aasha waa: $supabaseAnswer 😊";
+      }
+
       return noAnswerFallback;
     } catch (e) {
       final msg = e.toString().toLowerCase();

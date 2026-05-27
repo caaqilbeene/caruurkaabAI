@@ -14,7 +14,9 @@ class SupabaseChatKnowledgeService {
         _cachedBundle != null &&
         _lastSyncAt != null &&
         DateTime.now().difference(_lastSyncAt!) <= _cacheTtl;
-    if (!forceRefresh && isFresh) return _cachedBundle!;
+    if (!forceRefresh && isFresh && _cachedBundle!.qaItems.isNotEmpty) {
+      return _cachedBundle!;
+    }
 
     final loaded = await loadKnowledge();
     _cachedBundle = loaded;
@@ -30,7 +32,10 @@ class SupabaseChatKnowledgeService {
     final qa = bundle.qaItems;
     if (qa.isEmpty) return null;
 
+    final qFuzzy = _normalizeFuzzy(message);
     final qTokens = _tokenizeForMatch(message);
+    final qTokensFuzzy = _tokenizeForMatchFuzzy(message);
+
     ChatQaItem? best;
     var bestScore = 0;
 
@@ -39,14 +44,35 @@ class SupabaseChatKnowledgeService {
       if (qn.isEmpty) continue;
       if (_isAmbiguousChoiceLabel(item.answer)) continue;
 
+      final qnFuzzy = _normalizeFuzzy(item.question);
+
       var score = 0;
-      if (qn == q) score += 120;
-      if (qn.contains(q)) score += 40;
-      if (q.contains(qn)) score += 30;
+      if (qn == q) {
+        score += 120;
+      } else if (qnFuzzy == qFuzzy) {
+        score += 100;
+      }
+
+      if (qn.contains(q)) {
+        score += 40;
+      } else if (qnFuzzy.contains(qFuzzy)) {
+        score += 30;
+      }
+
+      if (q.contains(qn)) {
+        score += 35;
+      } else if (qFuzzy.contains(qnFuzzy)) {
+        score += 25;
+      }
 
       final itemTokens = _tokenizeForMatch(item.question);
       for (final t in qTokens) {
         if (itemTokens.contains(t)) score += 8;
+      }
+
+      final itemTokensFuzzy = _tokenizeForMatchFuzzy(item.question);
+      for (final t in qTokensFuzzy) {
+        if (itemTokensFuzzy.contains(t)) score += 6;
       }
 
       if (score > bestScore) {
@@ -350,12 +376,12 @@ class SupabaseChatKnowledgeService {
   }
 
   String? _extractQuizAnswer(Map<String, dynamic> q) {
-    final optionsRaw = q['options'];
+    final optionsRaw = q['options'] ?? q['choices'] ?? q['answers'];
     final options = optionsRaw is List
         ? optionsRaw.map((e) => e.toString().trim()).toList()
         : <String>[];
 
-    final direct = (q['answer'] ?? q['correctAnswer'] ?? q['correct'] ?? '')
+    final direct = (q['answer'] ?? q['correctAnswer'] ?? q['correct_answer'] ?? q['correct'] ?? '')
         .toString()
         .trim();
     if (direct.isNotEmpty) {
@@ -381,7 +407,7 @@ class SupabaseChatKnowledgeService {
 
     if (options.isEmpty) return null;
 
-    final idxRaw = q['correctIndex'];
+    final idxRaw = q['correctIndex'] ?? q['correct_index'] ?? q['correct_answer_index'] ?? q['correct'];
     final idx = idxRaw is int ? idxRaw : int.tryParse('$idxRaw');
     if (idx == null || idx < 0 || idx >= options.length) return null;
     final answer = options[idx].trim();
@@ -468,12 +494,31 @@ class SupabaseChatKnowledgeService {
     return raw.where((e) => e.length >= 2).toSet();
   }
 
+  Set<String> _tokenizeForMatchFuzzy(String value) {
+    final raw = _normalizeFuzzy(value).split(' ');
+    return raw.where((e) => e.length >= 2).toSet();
+  }
+
   String _normalize(String v) {
     return v
         .toLowerCase()
+        .replaceAll("'", "")
+        .replaceAll("`", "")
         .replaceAll(RegExp(r'[^a-z0-9\u0600-\u06FF\s]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  String _normalizeFuzzy(String v) {
+    var s = _normalize(v);
+    s = s.replaceAll('aa', 'a').replaceAll('ee', 'e').replaceAll('ii', 'i').replaceAll('oo', 'o').replaceAll('uu', 'u');
+    s = s.replaceAll('bb', 'b').replaceAll('cc', 'c').replaceAll('dd', 'd').replaceAll('ff', 'f')
+         .replaceAll('gg', 'g').replaceAll('hh', 'h').replaceAll('jj', 'j').replaceAll('kk', 'k')
+         .replaceAll('ll', 'l').replaceAll('mm', 'm').replaceAll('nn', 'n').replaceAll('pp', 'p')
+         .replaceAll('qq', 'q').replaceAll('rr', 'r').replaceAll('ss', 's').replaceAll('tt', 't')
+         .replaceAll('vv', 'v').replaceAll('ww', 'w').replaceAll('xx', 'x').replaceAll('yy', 'y')
+         .replaceAll('zz', 'z');
+    return s;
   }
 }
 

@@ -318,16 +318,24 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
           if (questionText.isEmpty || options.length < 2) continue;
 
           final safeCorrectIndex = correctIndex.clamp(0, options.length - 1);
-          final optionOrder = List<int>.generate(options.length, (i) => i)
-            ..shuffle(Random());
-          final shuffledOptions = optionOrder.map((i) => options[i]).toList();
-          final shuffledCorrectIndex = optionOrder.indexOf(safeCorrectIndex);
+          final List<String> finalOptions;
+          final int finalCorrectIndex;
+
+          if (type == 'true_false') {
+            finalOptions = List<String>.from(options);
+            finalCorrectIndex = safeCorrectIndex;
+          } else {
+            final optionOrder = List<int>.generate(options.length, (i) => i)
+              ..shuffle(Random());
+            finalOptions = optionOrder.map((i) => options[i]).toList();
+            finalCorrectIndex = optionOrder.indexOf(safeCorrectIndex);
+          }
 
           parsedQuestions.add(
             _QuizQuestion(
               question: questionText,
-              options: shuffledOptions,
-              correctIndex: shuffledCorrectIndex,
+              options: finalOptions,
+              correctIndex: finalCorrectIndex,
               imageUrl: imageUrl?.isEmpty ?? true ? null : imageUrl,
               hint: hint,
               difficulty: difficulty,
