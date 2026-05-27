@@ -868,13 +868,31 @@ class _QuizQuestionScreenState extends State<QuizQuestionScreen> {
               ),
               child: Row(
                 children: [
+                  if (q.type == 'true_false')
+                    Container(
+                      margin: const EdgeInsets.only(right: 12),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF1D5AFF)
+                              : const Color(0xFFCBD5E1),
+                          width: 2,
+                        ),
+                        color: isSelected
+                            ? const Color(0xFF1D5AFF)
+                            : Colors.white,
+                      ),
+                    ),
                   Expanded(
                     child: Text(
                       q.options[index],
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: textColor,
+                        color: isSelected ? const Color(0xFF1D5AFF) : textColor,
                       ),
                     ),
                   ),

@@ -566,14 +566,16 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
       _notifications.removeWhere((e) => e.id == item.id);
     });
 
-    if (item.userId == '__all__') {
+    try {
       final prefs = await SharedPreferences.getInstance();
       final hidden = prefs.getStringList('hidden_notifications') ?? [];
       if (!hidden.contains(item.id)) {
         hidden.add(item.id);
         await prefs.setStringList('hidden_notifications', hidden);
       }
-    } else {
+    } catch (_) {}
+
+    if (item.userId != '__all__') {
       try {
         await Supabase.instance.client
             .from('student_notifications')

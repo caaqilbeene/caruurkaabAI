@@ -127,19 +127,30 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
       for (final raw in qList) {
         if (raw is! Map) continue;
         final entry = _QuizQuestionEntry();
+        entry.type = (raw['type'] ?? 'mcq').toString().trim().toLowerCase();
+        if (entry.type != 'true_false') entry.type = 'mcq';
+
         entry.questionController.text = (raw['question'] ?? '').toString();
         entry.imageUrlController.text = (raw['imageUrl'] ?? '').toString();
-        final options = raw['options'];
-        if (options is List && options.length >= 3) {
-          entry.option1Controller.text = (options[0] ?? '').toString();
-          entry.option2Controller.text = (options[1] ?? '').toString();
-          entry.option3Controller.text = (options[2] ?? '').toString();
-          final correctIndex = raw['correctIndex'];
-          if (correctIndex is int &&
-              correctIndex >= 0 &&
-              correctIndex < options.length) {
-            entry.correctAnswerController.text = (options[correctIndex] ?? '')
-                .toString();
+
+        if (entry.type == 'true_false') {
+          final correctIndex = raw['correctIndex'] is int
+              ? raw['correctIndex'] as int
+              : int.tryParse((raw['correctIndex'] ?? '0').toString()) ?? 0;
+          entry.trueFalseValue = correctIndex == 0 ? 'True' : 'False';
+        } else {
+          final options = raw['options'];
+          if (options is List && options.length >= 3) {
+            entry.option1Controller.text = (options[0] ?? '').toString();
+            entry.option2Controller.text = (options[1] ?? '').toString();
+            entry.option3Controller.text = (options[2] ?? '').toString();
+            final correctIndex = raw['correctIndex'];
+            if (correctIndex is int &&
+                correctIndex >= 0 &&
+                correctIndex < options.length) {
+              entry.correctAnswerController.text = (options[correctIndex] ?? '')
+                  .toString();
+            }
           }
         }
         _questions.add(entry);
@@ -486,6 +497,26 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: q.type,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFB),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'mcq', child: Text('MCQ (A/B/C)')),
+                        DropdownMenuItem(value: 'true_false', child: Text('True / False')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => q.type = value);
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: q.questionController,
                       autocorrect: false,
@@ -530,7 +561,10 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                                 setState(() => q.isUploading = true);
                                 try {
                                   final media = await _pickImage();
-                                  if (media == null) return;
+                                  if (media == null) {
+                                    if (mounted) setState(() => q.isUploading = false);
+                                    return;
+                                  }
                                   final url = await _uploadToSupabase(media);
                                   if (url != null) {
                                     q.imageUrlController.text = url;
@@ -565,29 +599,51 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildOptionField('Jawaab 1', q.option1Controller),
-                    const SizedBox(height: 6),
-                    _buildOptionField('Jawaab 2', q.option2Controller),
-                    const SizedBox(height: 6),
-                    _buildOptionField('Jawaab 3', q.option3Controller),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: q.correctAnswerController,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      smartDashesType: SmartDashesType.disabled,
-                      smartQuotesType: SmartQuotesType.disabled,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Correct Answer (waxaad qori kartaa A/B/C ama jawaabta saxda ah)',
-                        filled: true,
-                        fillColor: const Color(0xFFF9FAFB),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
+                    if (q.type == 'true_false') ...[
+                      DropdownButtonFormField<String>(
+                        initialValue: q.trueFalseValue,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'True', child: Text('True')),
+                          DropdownMenuItem(value: 'False', child: Text('False')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => q.trueFalseValue = value);
+                        },
+                      ),
+                    ] else ...[
+                      _buildOptionField('Jawaab 1', q.option1Controller),
+                      const SizedBox(height: 6),
+                      _buildOptionField('Jawaab 2', q.option2Controller),
+                      const SizedBox(height: 6),
+                      _buildOptionField('Jawaab 3', q.option3Controller),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: q.correctAnswerController,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        smartDashesType: SmartDashesType.disabled,
+                        smartQuotesType: SmartQuotesType.disabled,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Correct Answer (waxaad qori kartaa A/B/C ama jawaabta saxda ah)',
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -628,6 +684,27 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                 final questions = <Map<String, dynamic>>[];
                 for (final q in _questions) {
                   final question = q.questionController.text.trim();
+                  if (question.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Fadlan buuxi su’aasha.')),
+                    );
+                    return;
+                  }
+
+                  if (q.type == 'true_false') {
+                    final correctIndex = q.trueFalseValue == 'False' ? 1 : 0;
+                    questions.add({
+                      'type': 'true_false',
+                      'question': question,
+                      'imageUrl': q.imageUrlController.text.trim(),
+                      'options': const ['True', 'False'],
+                      'correctIndex': correctIndex,
+                      'correctAnswer': q.trueFalseValue,
+                      'points': _defaultPoints(),
+                    });
+                    continue;
+                  }
+
                   final options = [
                     q.option1Controller.text.trim(),
                     q.option2Controller.text.trim(),
@@ -638,9 +715,7 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                     correctText,
                     options,
                   );
-                  if (question.isEmpty ||
-                      options.any((o) => o.isEmpty) ||
-                      correctText.isEmpty) {
+                  if (options.any((o) => o.isEmpty) || correctText.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
@@ -661,10 +736,12 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
                     return;
                   }
                   questions.add({
+                    'type': 'mcq',
                     'question': question,
                     'imageUrl': q.imageUrlController.text.trim(),
                     'options': options,
                     'correctIndex': correctIndex,
+                    'correctAnswer': options[correctIndex],
                     'points': _defaultPoints(),
                   });
                 }
@@ -779,6 +856,8 @@ class _AdminQuizFormScreenState extends State<AdminQuizFormScreen> {
 }
 
 class _QuizQuestionEntry {
+  String type = 'mcq';
+  String trueFalseValue = 'True';
   final TextEditingController questionController = TextEditingController();
   final TextEditingController imageUrlController = TextEditingController();
   final TextEditingController option1Controller = TextEditingController();
