@@ -559,6 +559,28 @@ class FinalExamService {
     return true;
   }
 
+  static Future<bool> isLastChapter({
+    required String subject,
+    required int classLevel,
+    required String chapterId,
+  }) async {
+    try {
+      final normalizedSubject = _normalizeSubject(subject);
+      final chaptersRows = await Supabase.instance.client
+          .from('chapters')
+          .select('id,course_order')
+          .eq('subject_name', normalizedSubject)
+          .eq('class_level', classLevel)
+          .order('course_order', ascending: true);
+
+      if (chaptersRows.isEmpty) return false;
+      final lastChapterId = chaptersRows.last['id']?.toString().trim() ?? '';
+      return lastChapterId == chapterId.trim();
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<bool> isEligibleForGrandFinal() async {
     // Grand final: require all available class-final exams to be passed.
     final userKeys = _userKeys();

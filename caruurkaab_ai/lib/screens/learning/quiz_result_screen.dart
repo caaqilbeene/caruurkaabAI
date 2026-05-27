@@ -46,6 +46,13 @@ class QuizResultScreen extends StatelessWidget {
     final isChapterQuiz = chapter.isNotEmpty && lessonId.trim().isEmpty;
     if (!isChapterQuiz) return null;
 
+    final isLast = await FinalExamService.isLastChapter(
+      subject: subjectName,
+      classLevel: classLevel,
+      chapterId: chapter,
+    );
+    if (!isLast) return null;
+
     final exam = await FinalExamService.fetchClassFinalExam(
       subject: subjectName,
       classLevel: classLevel,
