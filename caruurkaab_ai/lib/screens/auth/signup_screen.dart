@@ -1075,13 +1075,35 @@ class _VerifyEmailAndPlacementScreenState
   Future<void> _resendVerificationEmail() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    await user.sendEmailVerification();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Verification link cusub ayaa laguu diray."),
-      ),
-    );
+    try {
+      await user.sendEmailVerification();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Verification link cusub ayaa laguu diray."),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String message = "Cilad ayaa dhacday. Fadlan mar kale isku day.";
+      if (e.code == 'too-many-requests') {
+        message = "Codsiyada waa ay ka badanyihiin inta la oggolyahay. Fadlan waxyar sug oo dib isku day.";
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Cilad: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
