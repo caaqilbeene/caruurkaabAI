@@ -22,27 +22,8 @@ class _SplashScreenViewState extends State<SplashScreenView> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 48), // Balance
-                  TextButton(
-                    onPressed: widget.onSkip,
-                    child: const Text(
-                      "Skip",
-                      style: TextStyle(
-                        color: Color(0xFF1D5AFF),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Top spacing instead of skip button
+            const SizedBox(height: 40),
 
             const Spacer(),
 
@@ -119,6 +100,7 @@ class _SplashScreenViewState extends State<SplashScreenView> {
               child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(begin: 0, end: 1),
                 duration: const Duration(seconds: 3),
+                onEnd: widget.onNext,
                 builder: (context, value, _) {
                   final percent = (value * 100).round();
                   return Column(
@@ -163,71 +145,7 @@ class _SplashScreenViewState extends State<SplashScreenView> {
               ),
             ),
 
-            const SizedBox(height: 30),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: ElevatedButton(
-                onPressed: widget.onNext,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1D5AFF),
-                  minimumSize: const Size(double.infinity, 60),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  elevation: 5,
-                  shadowColor: const Color(0xFF1D5AFF).withValues(alpha: 0.5),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Next",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Icon(Icons.arrow_forward, color: Colors.white),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // const Column(
-            //   children: [
-            //     Text(
-            //       "POWERED BY",
-            //       style: TextStyle(
-            //         color: Colors.grey,
-            //         fontSize: 10,
-            //         fontWeight: FontWeight.bold,
-            //         letterSpacing: 1.5,
-            //       ),
-            //     ),
-            //     SizedBox(height: 5),
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.center,
-            //       children: [
-            //         Icon(Icons.rocket_launch, size: 16, color: Colors.grey),
-            //         SizedBox(width: 5),
-            //         Text(
-            //           "CURIOSITY LABS",
-            //           style: TextStyle(
-            //             color: Colors.grey,
-            //             fontSize: 14,
-            //             fontWeight: FontWeight.w900,
-            //           ),
-            //         ),
-            //       ],
-            //     ),
-            //   ],
-            // ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 60),
           ],
         ),
       ),
