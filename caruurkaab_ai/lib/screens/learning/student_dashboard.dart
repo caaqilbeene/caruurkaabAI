@@ -1267,7 +1267,7 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "Galka weydiimaha",
+                          "GALKA WEYDIIMAHA",
                           style: TextStyle(
                             color: Color(0xFF1D5AFF),
                             fontSize: 12,

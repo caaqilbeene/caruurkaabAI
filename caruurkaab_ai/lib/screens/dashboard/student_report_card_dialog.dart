@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -101,6 +103,31 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
     try {
       logoImage = await imageFromAssetBundle('assets/images/logo.jpeg');
     } catch (_) {}
+
+    pw.ImageProvider? signatureImage;
+    try {
+      final bytes = await rootBundle.load('assets/images/signature.jpeg');
+      final rawImage = img.decodeImage(bytes.buffer.asUint8List());
+      if (rawImage != null) {
+        for (final pixel in rawImage) {
+          final r = pixel.r;
+          final g = pixel.g;
+          final b = pixel.b;
+          if (r < 80 && g < 80 && b < 80) {
+            pixel.r = 255;
+            pixel.g = 255;
+            pixel.b = 255;
+            pixel.a = 0;
+          }
+        }
+        final pngBytes = img.encodePng(rawImage);
+        signatureImage = pw.MemoryImage(pngBytes);
+      }
+    } catch (_) {
+      try {
+        signatureImage = await imageFromAssetBundle('assets/images/signature.jpeg');
+      } catch (_) {}
+    }
 
     final studentName = widget.profile.fullName ?? 'Arday';
     final studentId = widget.profile.studentId;
@@ -227,6 +254,15 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
+                        if (signatureImage != null)
+                          pw.Container(
+                            height: 35,
+                            width: 100,
+                            margin: const pw.EdgeInsets.only(bottom: 2),
+                            child: pw.Image(signatureImage),
+                          )
+                        else
+                          pw.SizedBox(height: 37),
                         pw.Container(
                           width: 150,
                           decoration: const pw.BoxDecoration(
