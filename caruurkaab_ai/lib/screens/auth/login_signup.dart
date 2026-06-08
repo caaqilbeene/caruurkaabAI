@@ -648,6 +648,9 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 6), // Reduced
                         TextFormField(
                           controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          enableSuggestions: false,
                           decoration: InputDecoration(
                             hintText: "Gali email-kaaga",
                             hintStyle: const TextStyle(

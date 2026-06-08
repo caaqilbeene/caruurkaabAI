@@ -129,8 +129,6 @@ class SupabaseChatKnowledgeService {
     final chunks = <ChatKnowledgeChunk>[];
     final qaItems = <ChatQaItem>[];
 
-    qaItems.addAll(_buildPlacementQaSeed());
-
     Future<void> safeRun(Future<void> Function() task) async {
       try {
         await task();
@@ -494,46 +492,6 @@ class SupabaseChatKnowledgeService {
     return candidate;
   }
 
-  List<ChatQaItem> _buildPlacementQaSeed() {
-    const seed = <Map<String, String>>[
-      {'q': 'Soomaaliya waxay xorriyadda qaadatay?', 'a': '1960'},
-      {'q': 'Soomaaliya waxay xorowday 1960.', 'a': 'Run'},
-      {
-        'q': 'Madaxweynihii ugu horreeyay ee Soomaaliya waa?',
-        'a': 'Aadan Cabdulle Cismaan (Aden Abdullah Osman Daar)',
-      },
-      {
-        'q': 'Madaxweynehii ugu horeeyay ee soomaaliya yuu ahaa?',
-        'a': 'Aadan Cabdulle Cismaan (Aden Abdullah Osman Daar)',
-      },
-      {'q': 'Caasimadda Soomaaliya waa?', 'a': 'Muqdisho'},
-      {'q': 'Wabiga ugu dheer Soomaaliya waa kee?', 'a': 'Shabeelle'},
-      {'q': 'Lacagta Soomaaliya waa?', 'a': 'Shilin Soomaali'},
-      {'q': '4 + 4 = ?', 'a': '8'},
-      {'q': '7 + 3 = ?', 'a': '10'},
-      {'q': '10 - 4 = ?', 'a': '6'},
-      {'q': '15 + 5 = ?', 'a': '20'},
-      {'q': 'Qalabka wax lagu qoro waa?', 'a': 'Qalin'},
-      {'q': 'Bisha Ramadaan ka dib waxaa yimaada?', 'a': 'Ciidul Fidr'},
-      {
-        'q': 'Magaalada Kismaayo waxay ku taallaa gobolka?',
-        'a': 'Jubbada Hoose',
-      },
-    ];
-
-    return seed
-        .map(
-          (item) => ChatQaItem(
-            question: item['q']!,
-            answer: item['a']!,
-            source: 'placement',
-            title: 'Placement',
-            subject: 'Placement',
-            classLevel: 'Placement',
-          ),
-        )
-        .toList(growable: false);
-  }
 
   static const _somaliStopWords = {
     'waa', 'maxay', 'maxaa', 'kee', 'tee', 'ee', 'oo', 'iyo', 'ama', 'ka', 'ku', 

@@ -690,6 +690,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         TextFormField(
                           controller: fullNameController,
                           textCapitalization: TextCapitalization.words,
+                          autocorrect: false,
+                          enableSuggestions: false,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Magaca waa qasab";
@@ -749,6 +751,9 @@ class _SignupScreenState extends State<SignupScreen> {
                         const SizedBox(height: 6),
                         TextFormField(
                           controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          enableSuggestions: false,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Email-ka waa qasab";
