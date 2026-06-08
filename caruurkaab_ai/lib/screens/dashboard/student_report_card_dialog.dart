@@ -126,7 +126,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                   ),
                 pw.Center(
                   child: pw.Text(
-                    "WARQADA CADEYNTA ARDAYGA",
+                    "WARQADA CADEYNTA NATIIJADA",
                     style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
@@ -291,7 +291,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      'Warqada Cadeynta Ardayga',
+                      'Warqada Cadeynta Natiijada',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
