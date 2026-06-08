@@ -372,6 +372,49 @@ class SupabaseChatKnowledgeService {
       }
     });
 
+    await safeRun(() async {
+      final rows = await db.from('placement_questions').select();
+      for (final row in rows) {
+        final map = Map<String, dynamic>.from(row);
+        final question = (map['question'] ?? '').toString().trim();
+        if (question.isEmpty) continue;
+
+        final options = List<dynamic>.from(map['options'] ?? []);
+        final correctIdx = (map['correct_index'] ?? 0) is int
+            ? (map['correct_index'] as int)
+            : int.tryParse((map['correct_index'] ?? 0).toString()) ?? 0;
+
+        String answerText = '';
+        if (options.isNotEmpty && correctIdx >= 0 && correctIdx < options.length) {
+          answerText = options[correctIdx].toString().trim();
+        }
+
+        if (answerText.isNotEmpty) {
+          final parts = <String>["Su'aal: $question", "Jawaab: $answerText"];
+          qaItems.add(
+            ChatQaItem(
+              question: question,
+              answer: answerText,
+              source: 'placement',
+              title: 'Placement',
+              subject: (map['subject'] ?? '').toString(),
+              classLevel: 'Placement',
+            ),
+          );
+
+          chunks.add(
+            ChatKnowledgeChunk(
+              source: 'placement',
+              title: 'Placement',
+              subject: (map['subject'] ?? '').toString(),
+              classLevel: 'Placement',
+              body: parts.join('\n'),
+            ),
+          );
+        }
+      }
+    });
+
     return ChatKnowledgeBundle(chunks: chunks, qaItems: qaItems);
   }
 
