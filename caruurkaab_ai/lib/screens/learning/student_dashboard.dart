@@ -214,6 +214,12 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
   bool _isProgressLoading = true;
   int _completedLessons = 0;
   int _totalLessons = 0;
+  Map<String, LessonCompletionProgress> _subjectProgress = {
+    'Af Soomaali': const LessonCompletionProgress(completed: 0, total: 0),
+    'English': const LessonCompletionProgress(completed: 0, total: 0),
+    'Xisaab': const LessonCompletionProgress(completed: 0, total: 0),
+    'Saynis': const LessonCompletionProgress(completed: 0, total: 0),
+  };
   bool _isLoadingNotifications = false;
   bool _isCheckingExamSuggestion = false;
   final List<_StudentNotificationItem> _notifications = [];
@@ -911,10 +917,15 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
     try {
       final progress =
           await LessonCompletionProgressService.fetchForCurrentUser();
+      final subProgress =
+          await LessonCompletionProgressService.fetchSubjectProgressForCurrentUser();
       if (!mounted) return;
       setState(() {
         _completedLessons = progress.completed;
         _totalLessons = progress.total;
+        if (subProgress.isNotEmpty) {
+          _subjectProgress = subProgress;
+        }
         _isProgressLoading = false;
       });
       await _loadAssignedLevel();
@@ -1191,25 +1202,33 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
                 _buildClassCard(
                   imagePath:
                       "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=400&auto=format&fit=crop", // Alphabet
-                  title: "Alifbeeda",
-                  subtitle: "Barashada Alifbeedada",
-                  progress: "80% DHAMMAAD",
+                  title: "Af Soomaali",
+                  subtitle: "Casharada Af Soomaaliga",
+                  progress: "${_subjectProgress['Af Soomaali']?.percentage ?? 0}% DHAMMAAD",
+                ),
+                const SizedBox(width: 15),
+                _buildClassCard(
+                  imagePath:
+                      "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=400&auto=format&fit=crop", // English
+                  title: "English",
+                  subtitle: "Barashada Luuqadda",
+                  progress: "${_subjectProgress['English']?.percentage ?? 0}% DHAMMAAD",
                 ),
                 const SizedBox(width: 15),
                 _buildClassCard(
                   imagePath:
                       "https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=400&auto=format&fit=crop", // Numbers
-                  title: "Tirada",
+                  title: "Xisaab",
                   subtitle: "Tirada & Xisaabta",
-                  progress: "20% DHAMMAAD",
+                  progress: "${_subjectProgress['Xisaab']?.percentage ?? 0}% DHAMMAAD",
                 ),
                 const SizedBox(width: 15),
                 _buildClassCard(
                   imagePath:
-                      "https://images.unsplash.com/photo-1516627145497-ae6968895b74?q=80&w=400&auto=format&fit=crop",
-                  title: "Midabada",
-                  subtitle: "Midabada & Magacyada",
-                  progress: "35% DHAMMAAD",
+                      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=400&auto=format&fit=crop", // Science
+                  title: "Saynis",
+                  subtitle: "Barashada Dabeecadda",
+                  progress: "${_subjectProgress['Saynis']?.percentage ?? 0}% DHAMMAAD",
                 ),
               ],
             ),
