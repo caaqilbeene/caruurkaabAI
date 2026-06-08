@@ -568,12 +568,14 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final hidden = prefs.getStringList('hidden_notifications') ?? [];
+      final hidden = List<String>.from(prefs.getStringList('hidden_notifications') ?? []);
       if (!hidden.contains(item.id)) {
         hidden.add(item.id);
         await prefs.setStringList('hidden_notifications', hidden);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error saving hidden notification: $e');
+    }
 
     if (item.userId != '__all__') {
       try {
@@ -581,7 +583,9 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
             .from('student_notifications')
             .delete()
             .eq('id', item.id);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error deleting notification from Supabase: $e');
+      }
     }
   }
 
