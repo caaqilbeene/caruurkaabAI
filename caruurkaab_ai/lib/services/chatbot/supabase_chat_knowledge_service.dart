@@ -492,14 +492,30 @@ class SupabaseChatKnowledgeService {
         .toList(growable: false);
   }
 
+  static const _somaliStopWords = {
+    'waa', 'maxay', 'maxaa', 'kee', 'tee', 'ee', 'oo', 'iyo', 'ama', 'ka', 'ku', 
+    'la', 'u', 'ah', 'in', 'soo', 'sii', 'is', 'uu', 'ay', 'ey', 'yey', 'wuxuu', 
+    'waxay', 'waxaa', 'eey', 'aan', 'aad', 'lagu', 'loogu', 'kugu', 'ugu', 'iga', 
+    'naggu', 'idinku', 'ma', 'miyaa', 'mise', 'kuwa', 'kan', 'tan', 'kuwan',
+    'kiisa', 'keeda', 'kooda', 'yahay', 'tahay', 'yihiin'
+  };
+
+  static const _somaliStopWordsFuzzy = {
+    'wa', 'maxay', 'maxa', 'ke', 'te', 'e', 'o', 'iyo', 'ama', 'ka', 'ku', 
+    'la', 'u', 'ah', 'in', 'so', 'si', 'is', 'ay', 'ey', 'yey', 'wuxu', 
+    'waxa', 'an', 'ad', 'lagu', 'logu', 'kugu', 'ugu', 'iga', 'nagu', 'idinku', 
+    'ma', 'miya', 'mise', 'kuwa', 'kan', 'tan', 'kuwan', 'kisa', 'keda', 'koda', 
+    'yahay', 'tahay', 'yihin'
+  };
+
   Set<String> _tokenizeForMatch(String value) {
     final raw = _normalize(value).split(' ');
-    return raw.where((e) => e.length >= 2).toSet();
+    return raw.where((e) => e.length >= 2 && !_somaliStopWords.contains(e)).toSet();
   }
 
   Set<String> _tokenizeForMatchFuzzy(String value) {
     final raw = _normalizeFuzzy(value).split(' ');
-    return raw.where((e) => e.length >= 2).toSet();
+    return raw.where((e) => e.length >= 2 && !_somaliStopWordsFuzzy.contains(e)).toSet();
   }
 
   String _normalize(String v) {
