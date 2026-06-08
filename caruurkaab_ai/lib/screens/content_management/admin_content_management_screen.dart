@@ -2,6 +2,7 @@
 import 'package:caruurkaab_ai/screens/content_management/admin_exam_management_screen.dart';
 import 'package:caruurkaab_ai/screens/content_management/admin_lesson_form_screen.dart';
 import 'package:caruurkaab_ai/screens/content_management/admin_chapter_management_screen.dart';
+import 'package:caruurkaab_ai/screens/content_management/admin_placement_management_screen.dart';
 import 'package:caruurkaab_ai/screens/content_management/admin_quiz_management_screen.dart';
 import 'package:caruurkaab_ai/screens/content_management/admin_system_settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -86,33 +87,68 @@ class _AdminContentManagementScreenState
               ),
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminChapterManagementScreen(),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminChapterManagementScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.folder_special, color: Colors.white, size: 18),
+                      label: const Text(
+                        'Chapters',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D5AFF),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.folder_special, color: Colors.white),
-                label: const Text(
-                  'Maamul Cutubyada (Manage Chapters)',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1D5AFF),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminPlacementManagementScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.quiz_outlined, color: Colors.white, size: 18),
+                      label: const Text(
+                        'Placement Qs',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 12),
             Expanded(

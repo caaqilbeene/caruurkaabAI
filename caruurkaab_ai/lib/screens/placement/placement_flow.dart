@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:caruurkaab_ai/screens/learning/student_dashboard.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/student_class_service.dart';
 
 class PlacementFlowScreen extends StatefulWidget {
@@ -22,14 +23,66 @@ class _PlacementFlowScreenState extends State<PlacementFlowScreen> {
   int? _selectedOptionIndex;
 
   String _assignedClass = "";
-  late final List<Map<String, dynamic>> _questions;
+  List<Map<String, dynamic>> _questions = [];
+  bool _isLoadingQuestions = true;
   final Map<String, int> _subjectTotals = {};
   final Map<String, int> _subjectScores = {};
 
   @override
   void initState() {
     super.initState();
-    _questions = _buildRandomQuestionSet();
+    _loadPlacementQuestions();
+  }
+
+  Future<void> _loadPlacementQuestions() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('placement_questions')
+          .select();
+
+      final dbQuestions = List<Map<String, dynamic>>.from(response);
+
+      if (dbQuestions.isNotEmpty) {
+        final mappedQuestions = dbQuestions.map((q) {
+          final options = List<String>.from(q['options'] ?? []);
+          return {
+            "subject": q['subject'] ?? 'Aqoonta Guud',
+            "type": q['type'] ?? 'mcq',
+            "question": q['question'] ?? '',
+            "options": options,
+            "correctIndex": q['correct_index'] ?? 0,
+            "image": q['image_url'],
+            "promptEmoji": q['prompt_emoji'],
+          };
+        }).toList();
+
+        mappedQuestions.shuffle(_random);
+
+        if (mounted) {
+          setState(() {
+            _questions = mappedQuestions.take(_placementQuestionCount).toList();
+            _isLoadingQuestions = false;
+            _setupSubjectScores();
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint("Error loading placement questions from DB: $e");
+    }
+
+    if (mounted) {
+      setState(() {
+        _questions = _buildRandomQuestionSet();
+        _isLoadingQuestions = false;
+        _setupSubjectScores();
+      });
+    }
+  }
+
+  void _setupSubjectScores() {
+    _subjectTotals.clear();
+    _subjectScores.clear();
     for (final question in _questions) {
       final subject = (question["subject"] as String?) ?? "Kale";
       _subjectTotals[subject] = (_subjectTotals[subject] ?? 0) + 1;
@@ -674,6 +727,16 @@ class _PlacementFlowScreenState extends State<PlacementFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingQuestions) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F8FA),
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation(Color(0xFF1D5AFF)),
+          ),
+        ),
+      );
+    }
     if (_step == 0) return _buildPlacementChoice();
     if (_step == 1) return _buildPlacementTest();
     if (_step == 2) return _buildPlacementResult();
@@ -745,7 +808,7 @@ class _PlacementFlowScreenState extends State<PlacementFlowScreen> {
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              "Imtixaanku waa $_placementQuestionCount su'aal random ah (af-Soomaali), qof walbana way ka duwanaan karaan.",
+                              "Imtixaanku waa $_placementQuestionCount su'aal oo (af-Soomaali).",
                               style: TextStyle(
                                 color: Color(0xFF1F2937),
                                 fontWeight: FontWeight.w600,

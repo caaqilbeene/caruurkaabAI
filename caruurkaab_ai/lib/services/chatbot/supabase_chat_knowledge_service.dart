@@ -81,7 +81,7 @@ class SupabaseChatKnowledgeService {
       }
     }
 
-    if (best != null && bestScore >= 14) {
+    if (best != null && bestScore >= 20) {
       return best.answer.trim();
     }
     return null;
@@ -501,11 +501,11 @@ class SupabaseChatKnowledgeService {
   };
 
   static const _somaliStopWordsFuzzy = {
-    'wa', 'maxay', 'maxa', 'ke', 'te', 'e', 'o', 'iyo', 'ama', 'ka', 'ku', 
-    'la', 'u', 'ah', 'in', 'so', 'si', 'is', 'ay', 'ey', 'yey', 'wuxu', 
-    'waxa', 'an', 'ad', 'lagu', 'logu', 'kugu', 'ugu', 'iga', 'nagu', 'idinku', 
-    'ma', 'miya', 'mise', 'kuwa', 'kan', 'tan', 'kuwan', 'kisa', 'keda', 'koda', 
-    'yahay', 'tahay', 'yihin'
+    'wa', 'maxai', 'maxa', 'ke', 'te', 'e', 'o', 'iyo', 'ama', 'ka', 'ku', 
+    'la', 'u', 'ah', 'in', 'so', 'si', 'is', 'ai', 'ei', 'iei', 'wuxu', 
+    'waxai', 'waxa', 'an', 'ad', 'lagu', 'logu', 'kugu', 'ugu', 'iga', 'nagu', 
+    'idinku', 'ma', 'miia', 'mise', 'kuwa', 'kan', 'tan', 'kuwan', 'kisa', 
+    'keda', 'koda', 'iahai', 'tahai', 'ihin'
   };
 
   Set<String> _tokenizeForMatch(String value) {
@@ -530,6 +530,7 @@ class SupabaseChatKnowledgeService {
 
   String _normalizeFuzzy(String v) {
     var s = _normalize(v);
+    s = s.replaceAll('y', 'i');
     s = s.replaceAll('aa', 'a').replaceAll('ee', 'e').replaceAll('ii', 'i').replaceAll('oo', 'o').replaceAll('uu', 'u');
     s = s.replaceAll('bb', 'b').replaceAll('cc', 'c').replaceAll('dd', 'd').replaceAll('ff', 'f')
          .replaceAll('gg', 'g').replaceAll('hh', 'h').replaceAll('jj', 'j').replaceAll('kk', 'k')
