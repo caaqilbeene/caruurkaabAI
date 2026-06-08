@@ -414,12 +414,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Icon(Icons.assignment, color: Colors.white),
                     SizedBox(width: 8),
-                    Text(
-                      'Arag Warqada Cadeynta (Report Card)',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                    Flexible(
+                      child: Text(
+                        'Arag Warqada Cadeynta (Report Card)',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
