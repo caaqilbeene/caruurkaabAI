@@ -97,6 +97,11 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
   Future<void> _printReportCard() async {
     final pdf = pw.Document();
 
+    pw.ImageProvider? logoImage;
+    try {
+      logoImage = await imageFromAssetBundle('assets/images/logo.jpeg');
+    } catch (_) {}
+
     final studentName = widget.profile.fullName ?? 'Arday';
     final studentId = widget.profile.studentId;
     final classLevel = 'Class ${widget.classLevel}';
@@ -110,9 +115,18 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
+                if (logoImage != null)
+                  pw.Center(
+                    child: pw.Container(
+                      margin: const pw.EdgeInsets.only(bottom: 10),
+                      width: 60,
+                      height: 60,
+                      child: pw.Image(logoImage),
+                    ),
+                  ),
                 pw.Center(
                   child: pw.Text(
-                    "SHAHAADADA WAXBARASHADA ARDAYGA",
+                    "WARQADA CADEYNTA ARDAYGA",
                     style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
@@ -126,7 +140,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
                   ),
                 ),
-                pw.SizedBox(height: 25),
+                pw.SizedBox(height: 20),
 
                 pw.Container(
                   padding: const pw.EdgeInsets.all(12),
@@ -253,13 +267,22 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
             children: [
               // Header
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/images/logo.jpeg',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Shahaadada Ardayga',
+                      'Warqada Cadeynta Ardayga',
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.w900,
                         color: Color(0xFF0F172A),
                       ),
@@ -412,7 +435,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     onPressed: _printReportCard,
                     icon: const Icon(Icons.print, color: Colors.white),
                     label: const Text(
-                      'Daabac Shahaadada (Print PDF)',
+                      'Daabac Warqada Cadeynta (Print PDF)',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

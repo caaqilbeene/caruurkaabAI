@@ -415,7 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Icon(Icons.assignment, color: Colors.white),
                     SizedBox(width: 8),
                     Text(
-                      'Arag Shahaadada (Report Card)',
+                      'Arag Warqada Cadeynta (Report Card)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -812,7 +812,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Fadlan geli Student ID Lambar si aad u aragto Shahaadada.',
+                  'Fadlan geli Student ID Lambar si aad u aragto Warqada Cadeynta.',
                   style: TextStyle(color: Color(0xFF64748B), height: 1.4),
                 ),
                 const SizedBox(height: 16),
