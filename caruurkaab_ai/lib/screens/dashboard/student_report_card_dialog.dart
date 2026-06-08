@@ -153,7 +153,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                     children: [
                       pw.Row(
                         children: [
-                          pw.SizedBox(width: 120, child: pw.Text("Student Name:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                          pw.SizedBox(width: 120, child: pw.Text("Magaca Ardayga:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
                           pw.Text(studentName),
                         ],
                       ),
@@ -265,38 +265,44 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      'assets/images/logo.jpeg',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
+              // Header Close Button
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Color(0xFF64748B)),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+              // Centered Logo & Title below it
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/logo.jpeg',
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
+                    const SizedBox(height: 12),
+                    const Text(
                       'Warqada Cadeynta Ardayga',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
                         color: Color(0xFF0F172A),
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: Color(0xFF64748B)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               
               // Student Info
               Container(
@@ -309,7 +315,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _infoRow('Student Name', widget.profile.fullName ?? 'Arday'),
+                    _infoRow('Magaca ardayga', widget.profile.fullName ?? 'Arday'),
                     const SizedBox(height: 4),
                     _infoRow('Admn No (ID)', widget.profile.studentId),
                     const SizedBox(height: 4),
@@ -497,7 +503,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
     return Row(
       children: [
         SizedBox(
-          width: 100,
+          width: 120,
           child: Text(
             label,
             style: const TextStyle(
