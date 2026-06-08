@@ -177,7 +177,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                 pw.SizedBox(height: 25),
 
                 pw.Text(
-                  "Scholastic Areas - Term 1",
+                  "Imtixaanka dhexe - Term 1",
                   style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 10),
@@ -327,7 +327,7 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
   
               // Table Header
               const Text(
-                'Scholastic Areas - Term 1',
+                'Imtixaanka dhexe - Term 1',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF334155),

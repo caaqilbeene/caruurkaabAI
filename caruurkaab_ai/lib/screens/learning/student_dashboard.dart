@@ -1267,10 +1267,10 @@ class _StudentDashboardBodyState extends State<StudentDashboardBody> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "TALO AI / AI SUGGESTION",
+                          "Galka weydiimaha",
                           style: TextStyle(
                             color: Color(0xFF1D5AFF),
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.0,
                           ),

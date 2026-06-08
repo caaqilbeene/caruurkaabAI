@@ -416,7 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        'Arag Warqada Cadeynta (Report Card)',
+                        'Warqada Cadeynta (Report Card)',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
