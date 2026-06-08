@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/student_profile_record.dart';
@@ -89,6 +92,149 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
     if (score >= 70) return 'C';
     if (score >= 50) return 'D';
     return 'F';
+  }
+
+  Future<void> _printReportCard() async {
+    final pdf = pw.Document();
+
+    final studentName = widget.profile.fullName ?? 'Arday';
+    final studentId = widget.profile.studentId;
+    final classLevel = 'Class ${widget.classLevel}';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(32),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Center(
+                  child: pw.Text(
+                    "SHAHAADADA WAXBARASHADA ARDAYGA",
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Center(
+                  child: pw.Text(
+                    "CaruurKaab AI - Learning Platform",
+                    style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                  ),
+                ),
+                pw.SizedBox(height: 25),
+
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey400),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        children: [
+                          pw.SizedBox(width: 120, child: pw.Text("Student Name:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                          pw.Text(studentName),
+                        ],
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.SizedBox(width: 120, child: pw.Text("Admission ID:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                          pw.Text(studentId),
+                        ],
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.SizedBox(width: 120, child: pw.Text("Class Level:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                          pw.Text(classLevel),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 25),
+
+                pw.Text(
+                  "Scholastic Areas - Term 1",
+                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 10),
+
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey300),
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                      children: [
+                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text("Subject Name", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text("Cutubyada (40)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text("Final Exam (60)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text("TOTAL (100)", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text("Grade", style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      ],
+                    ),
+                    ..._examResults.map((result) {
+                      final subjectName = result['subjectName'] as String;
+                      final score = result['score'] as SubjectScoreData;
+                      final totalScoreVal = score.totalScore;
+                      final gradeStr = score.hasTakenFinal ? _getGrade(totalScoreVal) : 'Lama Gelin';
+
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(subjectName)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(score.chapterScoreOutOf40.round().toString())),
+                          pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(score.finalScoreOutOf60.round().toString())),
+                          pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(score.totalScore.round().toString())),
+                          pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(gradeStr)),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+                pw.SizedBox(height: 50),
+
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text("Date Issued: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}"),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Container(
+                          width: 150,
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text("School Principal Signature"),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
   }
 
   @override
@@ -256,6 +402,29 @@ class _StudentReportCardDialogState extends State<StudentReportCardDialog> {
                       ),
                     );
                   }).toList(),
+                ),
+              const SizedBox(height: 20),
+              if (!_isLoading && _examResults.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _printReportCard,
+                    icon: const Icon(Icons.print, color: Colors.white),
+                    label: const Text(
+                      'Daabac Shahaadada (Print PDF)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1D5AFF),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
             ],
           ),
