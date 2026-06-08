@@ -458,6 +458,10 @@ class _AdminPlacementFormScreenState extends State<AdminPlacementFormScreen> {
               TextFormField(
                 controller: _questionController,
                 maxLines: 3,
+                autocorrect: false,
+                enableSuggestions: false,
+                smartDashesType: SmartDashesType.disabled,
+                smartQuotesType: SmartQuotesType.disabled,
                 decoration: InputDecoration(
                   hintText: 'Ku qor su\'aasha halkan...',
                   filled: true,
@@ -485,6 +489,10 @@ class _AdminPlacementFormScreenState extends State<AdminPlacementFormScreen> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _promptEmojiController,
+                autocorrect: false,
+                enableSuggestions: false,
+                smartDashesType: SmartDashesType.disabled,
+                smartQuotesType: SmartQuotesType.disabled,
                 decoration: InputDecoration(
                   hintText: 'Tusaale: 🐐 ama 🍎',
                   filled: true,
@@ -504,6 +512,10 @@ class _AdminPlacementFormScreenState extends State<AdminPlacementFormScreen> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _imageUrlController,
+                autocorrect: false,
+                enableSuggestions: false,
+                smartDashesType: SmartDashesType.disabled,
+                smartQuotesType: SmartQuotesType.disabled,
                 decoration: InputDecoration(
                   hintText: 'http://...',
                   filled: true,
@@ -695,6 +707,10 @@ class _AdminPlacementFormScreenState extends State<AdminPlacementFormScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: _optionControllers[index],
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              smartDashesType: SmartDashesType.disabled,
+                              smartQuotesType: SmartQuotesType.disabled,
                               decoration: InputDecoration(
                                 hintText: 'Doorashada ${index + 1}',
                                 filled: true,
